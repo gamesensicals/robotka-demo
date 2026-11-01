@@ -1,0 +1,11 @@
+node_modules
+.next
+.env
+.env.local
+next-env.d.ts
+*.tsbuildinfo
+# generuje "next dev" automaticky
+AGENTS.md
+
+# databáza a súbory dema (každú hodinu sa nahrajú znova)
+data

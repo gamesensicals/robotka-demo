@@ -1,0 +1,19 @@
+# Render Blueprint: demo Robotky (demo.robotka.beer) na bezplatnom pláne.
+# Render → New → Blueprint → vyber repozitár robotka-demo → Apply.
+services:
+  - type: web
+    name: robotka-demo
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FILES_SECRET
+        generateValue: true
+      - key: APP_URL
+        value: https://demo.robotka.beer
+    domains:
+      - demo.robotka.beer
