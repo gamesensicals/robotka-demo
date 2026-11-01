@@ -1,17 +1,36 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { accessSync, constants, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { SCHEMA, SCHEMA_VERSION } from "./schema";
 
 // Next.js balí inštrumentáciu a stránky do samostatných modulov, preto jedna
 // inštancia databázy na proces žije na globalThis.
-const g = globalThis as unknown as { __robotkaDb?: DatabaseSync };
+const g = globalThis as unknown as { __robotkaDb?: DatabaseSync; __dataDir?: string };
+
+/**
+ * Priečinok na databázu a súbory dema. Ak sa do DATA_DIR nedá zapisovať (napr. zlé nastavenie
+ * na hostingu), demo nespadne, ale použije dočasný priečinok – dáta sa aj tak každú hodinu mažú.
+ */
+export function dataDir(): string {
+  if (g.__dataDir) return g.__dataDir;
+  const wanted = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), "data"));
+  try {
+    mkdirSync(wanted, { recursive: true });
+    accessSync(wanted, constants.W_OK);
+    g.__dataDir = wanted;
+  } catch (e) {
+    const fallback = path.join(tmpdir(), "robotka-demo");
+    console.warn(`[db] cannot write to ${wanted} (${(e as NodeJS.ErrnoException).code ?? e}), using ${fallback}`);
+    mkdirSync(fallback, { recursive: true });
+    g.__dataDir = fallback;
+  }
+  return g.__dataDir;
+}
 
 export function getDb(): DatabaseSync {
   if (!g.__robotkaDb) {
-    const dir = process.env.DATA_DIR || path.join(process.cwd(), "data");
-    mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, "robotka.db");
+    const file = path.join(dataDir(), "robotka.db");
     let db = open(file);
     const version = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
     const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' LIMIT 1").get();
@@ -31,7 +50,7 @@ export function getDb(): DatabaseSync {
 
 /** Zahodí lokálnu databázu (je to len kópia logu z hubu); ďalší getDb() vytvorí prázdnu. */
 export function resetDb() {
-  const file = path.join(process.env.DATA_DIR || path.join(process.cwd(), "data"), "robotka.db");
+  const file = path.join(dataDir(), "robotka.db");
   g.__robotkaDb?.close();
   g.__robotkaDb = undefined;
   for (const f of [file, `${file}-wal`, `${file}-shm`]) rmSync(f, { force: true });

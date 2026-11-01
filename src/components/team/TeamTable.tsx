@@ -18,6 +18,7 @@ export default async function TeamTable({
   me,
   back,
   extra,
+  seatPrice,
 }: {
   companyId: string;
   primaryOwnerId: string | null;
@@ -26,6 +27,8 @@ export default async function TeamTable({
   back: string;
   /** ďalšie tlačidlá pri človeku (webmaster: spraviť supermajiteľom) */
   extra?: (m: Member) => ReactNode;
+  /** cena prevádzky za osobu (len pri cene na osobu), ukáže sa pri pridávaní */
+  seatPrice?: string;
 }) {
   const { t, date } = await getT();
   const e = t.employees;
@@ -178,6 +181,7 @@ export default async function TeamTable({
                 </label>
               </div>
               <p className="muted small-note" style={{ marginTop: 10 }}>{e.memberHint}</p>
+              {seatPrice && <p className="muted small-note" style={{ marginTop: 6 }}>{e.seatHint(seatPrice)}</p>}
               <div className="actions" style={{ marginTop: 12 }}><button className="primary">{e.addMember}</button></div>
             </fieldset>
           </form>
@@ -192,6 +196,7 @@ export default async function TeamTable({
                   <label className="field">{e.tempPassword}<input name="password" type="password" required minLength={10} autoComplete="new-password" /></label>
                 </div>
                 <p className="muted small-note" style={{ marginTop: 10 }}>{e.ownerHint}</p>
+                {seatPrice && <p className="muted small-note" style={{ marginTop: 6 }}>{e.seatHint(seatPrice)}</p>}
                 <div className="actions" style={{ marginTop: 12 }}><button className="primary">{e.addOwner}</button></div>
               </form>
             </details>

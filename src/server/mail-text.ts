@@ -30,6 +30,12 @@ const link = (c: Ctx, path: string) => (c.url ? `${c.url}${path}` : "");
 const lines = (...l: (string | false | null | undefined)[]) => l.filter((x) => x !== false && x != null).join("\n");
 const n = (v: unknown) => Number(v ?? 0);
 const s = (v: unknown) => String(v ?? "");
+/** Zmena ceny prevádzky (alebo či sa platí na osobu / na firmu); firmy s vlastnou cenou sa netýka. */
+const feeChanged = (d: D) => !d.own && (n(d.oldFee) !== n(d.newFee) || (d.oldMode ?? null) !== (d.newMode ?? null));
+const unit = (perUser: string, perCompany: string, plain: string) => (m: unknown) => (m === "per_user" ? perUser : m === "per_company" ? perCompany : plain);
+const unitSk = unit("mesačne za osobu", "mesačne za firmu", "mesačne");
+const unitEn = unit("per person per month", "per company per month", "per month");
+const unitCs = unit("měsíčně za osobu", "měsíčně za firmu", "měsíčně");
 
 const sk: Texts = {
   footerOptional: (url) => `Toto je automatická správa z Robotky.${url ? ` Upozornenia si vypneš v Môj účet: ${url}/account` : " Upozornenia si vypneš v Môj účet."}`,
@@ -91,11 +97,11 @@ const sk: Texts = {
     subject: `Robotka: zmena cien od ${c.date(s(d.effective))}`,
     text: lines(
       `Od ${c.date(s(d.effective))} sa menia ceny:`,
-      n(d.oldFee) !== n(d.newFee) && `Prevádzka: ${c.money(n(d.oldFee))} → ${c.money(n(d.newFee))} mesačne`,
+      feeChanged(d) && `Prevádzka: ${c.money(n(d.oldFee))} ${unitSk(d.oldMode)} → ${c.money(n(d.newFee))} ${unitSk(d.newMode)}`,
       n(d.oldStorage) !== n(d.newStorage) && `Úložisko: ${c.money(n(d.oldStorage))} → ${c.money(n(d.newStorage))} za GB-mesiac`,
       "",
       "Kredit, ktorý máš, ostáva tvoj a platí ďalej.",
-      c.url && `Podmienky: ${link(c, "/terms")}`,
+      c.url && `Podmienky: ${"https://robotka.beer/terms"}`,
     ),
   }),
   price_cancel: (d, c) => ({
@@ -172,11 +178,11 @@ const en: Texts = {
     subject: `Robotka: new prices from ${c.date(s(d.effective))}`,
     text: lines(
       `Prices change on ${c.date(s(d.effective))}:`,
-      n(d.oldFee) !== n(d.newFee) && `Service: ${c.money(n(d.oldFee))} → ${c.money(n(d.newFee))} per month`,
+      feeChanged(d) && `Service: ${c.money(n(d.oldFee))} ${unitEn(d.oldMode)} → ${c.money(n(d.newFee))} ${unitEn(d.newMode)}`,
       n(d.oldStorage) !== n(d.newStorage) && `Storage: ${c.money(n(d.oldStorage))} → ${c.money(n(d.newStorage))} per GB-month`,
       "",
       "The credit you have stays yours and remains valid.",
-      c.url && `Terms: ${link(c, "/terms")}`,
+      c.url && `Terms: ${"https://robotka.beer/terms"}`,
     ),
   }),
   price_cancel: (d, c) => ({
@@ -253,11 +259,11 @@ const cs: Texts = {
     subject: `Robotka: změna cen od ${c.date(s(d.effective))}`,
     text: lines(
       `Od ${c.date(s(d.effective))} se mění ceny:`,
-      n(d.oldFee) !== n(d.newFee) && `Provoz: ${c.money(n(d.oldFee))} → ${c.money(n(d.newFee))} měsíčně`,
+      feeChanged(d) && `Provoz: ${c.money(n(d.oldFee))} ${unitCs(d.oldMode)} → ${c.money(n(d.newFee))} ${unitCs(d.newMode)}`,
       n(d.oldStorage) !== n(d.newStorage) && `Úložiště: ${c.money(n(d.oldStorage))} → ${c.money(n(d.newStorage))} za GB-měsíc`,
       "",
       "Kredit, který máš, zůstává tvůj a platí dál.",
-      c.url && `Podmínky: ${link(c, "/terms")}`,
+      c.url && `Podmínky: ${"https://robotka.beer/terms"}`,
     ),
   }),
   price_cancel: (d, c) => ({

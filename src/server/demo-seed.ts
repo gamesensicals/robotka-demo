@@ -1,4 +1,5 @@
 import { PRESETS } from "@/lib/perms";
+import { DEFAULT_PRICES } from "./default-prices";
 import { hashPassword } from "./auth";
 import { type ErrorCode, type EventBody, type SyncEvent, WEBMASTER } from "./events";
 
@@ -61,17 +62,10 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
   }
   run({ type: "credit.add", companyId: C, amount_cents: 3000, kind: "topup", note: "prevod na účet", ref: null, topupRequestId: null }, WEBMASTER);
 
-  // cenník (kategórie Káble, Ističe, Chráničky, S-boxy vznikli so založením firmy)
+  // cenník: rovnaký základný cenník, aký dostane nová firma v ostrej Robotke (pevné id položiek)
   const cat = (i: number) => `${C}:cat:${i}`;
-  const prices: [string, string, number, number | null, boolean][] = [
-    ["Kábel CYKY-J 3x1,5", "m", 0.85, 0], ["Kábel CYKY-J 3x2,5", "m", 1.2, 0], ["Kábel CYKY-J 5x2,5", "m", 2.1, 0], ["Kábel CYKY-J 5x6", "m", 4.9, 0],
-    ["Istič B10 1-pólový", "ks", 4.5, 1], ["Istič B16 1-pólový", "ks", 4.5, 1], ["Istič B32 3-pólový", "ks", 18.9, 1],
-    ["Prúdový chránič 40A/30mA 4-pólový", "ks", 39, 2], ["Chránič s ističom B16/30mA", "ks", 32.5, 2],
-    ["Rozvodnica 24 modulov", "ks", 32, 3], ["Krabica KU 68", "ks", 0.35, 3],
-    ["Práca elektrikára", "hod", 28, null, true], ["Revízia elektroinštalácie", "ks", 120, null], ["Doprava", "km", 0.45, null],
-  ].map(([name, unit, price, c, labor]) => [name as string, unit as string, price as number, c as number | null, !!labor]);
-  prices.forEach(([name, unit, unit_price, c, is_labor], i) =>
-    run({ type: "price.add", companyId: C, item: { id: `demo-price-${i}`, name, unit, unit_price, vat_rate: null, is_labor, category_id: c === null ? null : cat(c) } }, O)
+  DEFAULT_PRICES.forEach((p, i) =>
+    run({ type: "price.add", companyId: C, item: { id: `demo-price-${i}`, name: p.name, unit: p.unit, unit_price: p.unit_price, vat_rate: null, is_labor: !!p.is_labor, category_id: p.cat === null ? null : cat(p.cat) } }, O)
   );
 
   // zákazníci

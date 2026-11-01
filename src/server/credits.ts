@@ -1,4 +1,4 @@
-import { GB, daysInMonth, gbMonths, nextMonth, siteSettings, storageByteDays } from "./billing";
+import { type FeeMode, GB, companyFee, daysInMonth, gbMonths, nextMonth, siteSettings, storageByteDays } from "./billing";
 import { getDb } from "./db";
 import { REQUEST_DONE_DAYS, REQUEST_REJECTED_DAYS, SYSTEM, TICKET_IDLE_DAYS } from "./events";
 import { deleteFile } from "./files";
@@ -16,20 +16,24 @@ export function monthEstimate(company: Pick<Company, "id" | "storage_bytes">) {
   // ak do 1. dňa ďalšieho mesiaca začne platiť nová cena, odhad počíta s ňou
   const settings = { ...siteSettings(db) };
   const change = db.prepare(
-    "SELECT new_fee_cents, new_storage_cents FROM price_changes WHERE status = 'pending' AND effective_at <= ? ORDER BY effective_at DESC LIMIT 1"
-  ).get(`${nextMonth(month)}-01T00:00:00.000Z`) as { new_fee_cents: number; new_storage_cents: number } | undefined;
+    "SELECT new_fee_cents, new_storage_cents, new_mode FROM price_changes WHERE status = 'pending' AND effective_at <= ? ORDER BY effective_at DESC LIMIT 1"
+  ).get(`${nextMonth(month)}-01T00:00:00.000Z`) as { new_fee_cents: number; new_storage_cents: number; new_mode: FeeMode | null } | undefined;
   if (change) {
     settings.monthly_fee_cents = change.new_fee_cents;
     settings.storage_cents_per_gb = change.new_storage_cents;
+    if (change.new_mode) settings.fee_mode = change.new_mode;
   }
   const gbm = gbMonths(projected, month);
+  // prevádzka na ďalší mesiac: počet ľudí aspoň ako najviac v tomto mesiaci
+  const fee = companyFee(db, company.id, settings, nextMonth(month), month);
   return {
     month,
     next: nextMonth(month),
     gbMonthsExact: projected / (GB * days),
     gbMonths: gbm,
     storageCents: gbm * settings.storage_cents_per_gb,
-    feeCents: settings.monthly_fee_cents,
+    feeCents: fee.cents,
+    fee,
     settings,
   };
 }

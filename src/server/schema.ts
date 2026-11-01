@@ -1,7 +1,7 @@
 // Lokálna kópia dát na každom serveri. Pravda je v logu udalostí v hube;
 // táto databáza sa z neho dá kedykoľvek znova poskladať.
 // Pri zmene schémy zvýš verziu: server lokálnu databázu zahodí a poskladá ju znova z hubu.
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const SCHEMA = `
 -- Majiteľ sa prihlasuje e-mailom, člen tímu kódom firmy + používateľským menom.
@@ -36,7 +36,18 @@ CREATE TABLE IF NOT EXISTS companies (
   logo_size INTEGER NOT NULL DEFAULT 0,
   suspended INTEGER NOT NULL DEFAULT 0,    -- pozastavená webmastrom = len na čítanie
   blocked INTEGER NOT NULL DEFAULT 0,      -- zablokovaná webmastrom = nikto z firmy sa neprihlási (webmaster vidí cez bypass)
+  -- individuálna cena (len webmaster; NULL = platí cenník webu)
+  fee_cents INTEGER,
+  fee_mode TEXT CHECK (fee_mode IN ('per_user','per_company')),
+  fee_waived_until TEXT,                   -- odpustená prevádzka do mesiaca vrátane ('YYYY-MM', '9999-12' = natrvalo)
   created_at TEXT NOT NULL
+);
+-- najviac ľudí vo firme v danom mesiaci (prevádzka na osobu sa ráta aspoň z tohto počtu)
+CREATE TABLE IF NOT EXISTS member_peaks (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  month TEXT NOT NULL,
+  peak INTEGER NOT NULL,
+  PRIMARY KEY (company_id, month)
 );
 
 CREATE TABLE IF NOT EXISTS company_members (
@@ -219,6 +230,8 @@ CREATE TABLE IF NOT EXISTS account_requests (
   message TEXT,
   logo_path TEXT,                          -- logo nahraté so žiadosťou, pri založení sa stane logom firmy
   logo_size INTEGER NOT NULL DEFAULT 0,
+  people INTEGER,                          -- koľko ľudí bude Robotku používať (odhad zo žiadosti)
+  storage_gb INTEGER,                      -- odhadované úložisko v GB
   company_id TEXT,                         -- firma založená z tejto žiadosti
   status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','done','rejected')),
   status_at TEXT,                          -- kedy bola vybavená/zamietnutá (vybavená sa zmaže po 7, zamietnutá po 30 dňoch)
@@ -232,7 +245,8 @@ CREATE TABLE IF NOT EXISTS site_settings (
   contact_email TEXT,
   contact_phone TEXT,
   info_text TEXT,
-  monthly_fee_cents INTEGER NOT NULL DEFAULT 900,   -- 9 € mesačne za firmu
+  monthly_fee_cents INTEGER NOT NULL DEFAULT 1500,  -- 15 € mesačne za osobu (alebo za firmu, podľa fee_mode)
+  fee_mode TEXT NOT NULL DEFAULT 'per_user' CHECK (fee_mode IN ('per_user','per_company')),
   storage_cents_per_gb INTEGER NOT NULL DEFAULT 12, -- 0,12 € za GB-mesiac
   -- e-maily (SMTP); heslo je zašifrované kľúčom serverov, v logu hubu nie je čitateľné
   mail_enabled INTEGER NOT NULL DEFAULT 0,
@@ -251,6 +265,7 @@ CREATE TABLE IF NOT EXISTS price_changes (
   effective_at TEXT NOT NULL,
   old_fee_cents INTEGER NOT NULL, new_fee_cents INTEGER NOT NULL,
   old_storage_cents INTEGER NOT NULL, new_storage_cents INTEGER NOT NULL,
+  old_mode TEXT, new_mode TEXT,           -- prevádzka na osobu / na firmu
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','applied','cancelled')),
   done_at TEXT
 );

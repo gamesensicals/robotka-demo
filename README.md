@@ -21,6 +21,8 @@ zákazníci, cenník, faktúry a dochádzka. Každý si ho môže vyskúšať be
 - **Reset** pri štarte a každú celú hodinu (`src/server/demo.ts`): databáza aj súbory sa zmažú
   a nahrajú sa ukážkové dáta (`src/server/demo-seed.ts`) – dátumy sú vždy relatívne k dnešku.
   Ukážkové účty majú pevné id, takže prihlásení ostanú prihlásení.
+- **Podmienky** sú len na robotka.beer: odkaz v pätičke vedie tam a `/terms` dema presmeruje na
+  `https://robotka.beer/terms` (`src/lib/main-site.ts`).
 - **Vypnuté:** webmaster (nie je), žiadosť o účet (odkaz na robotka.beer), platba kartou, e-maily,
   zmena hesla, nový kód firmy a odobratie / zmena roly ukážkových účtov.
 - Pruh „Demo“ navrchu s časom najbližšieho resetu (`src/components/DemoBanner.tsx`), prihlasovacie
@@ -40,6 +42,11 @@ zákazníci, cenník, faktúry a dochádzka. Každý si ho môže vyskúšať be
    vedel overiť; neskôr sa dá proxy zapnúť (SSL/TLS režim **Full**).
 4. Každý push do hlavnej vetvy repozitára Render nasadí sám.
 
+**Ak službu zakladáš ručne** (New → Web Service namiesto Blueprintu): runtime Docker a v Environment
+nastav len `SESSION_SECRET` a `FILES_SECRET` (dlhé náhodné reťazce) a `APP_URL=https://demo.robotka.beer`.
+`DATA_DIR` **nenastavuj** – obraz používa `/data`. (Keby sa do `DATA_DIR` nedalo zapisovať, demo
+nespadne, ale použije dočasný priečinok a v logu napíše `cannot write to …`.)
+
 Na pláne Free: po 15 minútach bez návštevy služba zaspí a prvý návštevník čaká asi minútu.
 Disk sa pri uspaní vymaže – demo sa aj tak pri štarte nahrá nanovo.
 
@@ -49,19 +56,23 @@ cp .env.example .env.local
 npm ci
 npm run dev                 # http://localhost:3000
 ```
-Rýchlejší reset na skúšku: `DEMO_RESET_MINUTES=3`.
+Rýchlejší reset na skúšku: `DEMO_RESET_MINUTES=3` (pruh potom píše „každé 3 minúty“, predvolene „každú celú hodinu“).
 
 ## Prenos zmien z ostrej Robotky
 Demo je kópia aplikácie z repozitára `robotka`. Pri prenose novej verzie skopíruj `src/` a ponechaj
 (alebo ručne zlúč) tieto súbory dema:
-- `src/server/sync.ts`, `src/server/files.ts`, `src/server/demo.ts`, `src/server/demo-seed.ts`
+- `src/server/sync.ts`, `src/server/files.ts`, `src/server/db.ts` (záložný priečinok), `src/server/demo.ts`, `src/server/demo-seed.ts`
 - `src/instrumentation.ts`, `src/proxy.ts` (verejné `/files`), `src/app/files/[...key]/route.ts`
 - `src/app/demo-actions.ts`, `src/components/DemoBox.tsx`, `src/components/DemoBanner.tsx`
-- `src/app/layout.tsx`, `src/app/login/page.tsx`, `src/app/team/page.tsx`,
+- `src/app/layout.tsx`, `src/app/login/page.tsx`, `src/app/team/page.tsx`, `src/app/terms/page.tsx`,
+  `src/components/SiteFooter.tsx`, `src/lib/main-site.ts`,
   `src/app/request-account/page.tsx`, `src/app/account/page.tsx`
 - v prekladoch (`src/i18n/*.ts`) sekcia `demo` a chyba `demo_disabled`, v `src/server/events.ts`
   kód chyby `demo_disabled`, v `src/app/globals.css` časť `/* DEMO */`
-Ak nová verzia mení schému, ukážkové dáta v `demo-seed.ts` môže byť treba doplniť.
+Ak nová verzia mení schému, ukážkové dáta v `demo-seed.ts` môže byť treba doplniť. Ukážkový cenník
+je `src/server/default-prices.ts` z ostrej Robotky (ten istý, aký dostane nová firma).
+Najjednoduchší prenos: `git diff <posledná prenesená verzia> -- src` v repozitári robotka a `git apply`
+(bez `src/app/login/page.tsx` a `src/app/request-account/page.tsx`).
 
 ## Test
 `test/e2e/pages.mjs` prejde všetky stránky (majiteľ, členovia tímu, návštevník; SK/EN/CS; počítač aj mobil):

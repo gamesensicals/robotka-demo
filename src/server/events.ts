@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { DefaultPrice } from "./default-prices";
 import { totals } from "@/lib/invoice-math";
-import { gbMonths, prevMonth, proratedFee, siteSettings, storageByteDays } from "./billing";
+import { type FeeMode, companyFee, gbMonths, nextMonth, prevMonth, proratedFee, siteSettings, storageByteDays } from "./billing";
 import { type Perm, PRESETS, legacyPerms, normalizePerms, parsePerms, permsText } from "@/lib/perms";
 import { codeKey, deriveCode, deriveVs, usernameFromEmail, validUsername } from "./login-code";
 import {
@@ -56,7 +57,7 @@ export const TIME_LOCK_DAYS = 62;
 /** Kľúče nastavení, ktoré webmaster mení v paneli namiesto .env. */
 export const CONFIG_KEYS = [
   "polar_access_token", "polar_webhook_secret", "polar_product_id", "polar_server",
-  "app_url", "webmaster_email", "webmaster_password_hash", "dev_origins",
+  "app_url", "webmaster_email", "webmaster_password_hash", "dev_origins", "demo_url",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 export type TicketAudience = "company" | "support" | "people";
@@ -91,6 +92,8 @@ export type NewUser = { id: string; email?: Text; username?: Text; password_hash
 export type AccountRequest = {
   id: string; company_name: string; contact_name: string; email: string; phone: Text; ico: Text; message: Text;
   logo_path?: Text; logo_size?: number;
+  /** odhad zo žiadosti: koľko ľudí a koľko GB */
+  people?: number | null; storage_gb?: number | null;
 };
 export type SitePatch = {
   operator_name: Text; iban: Text; contact_email: Text; contact_phone: Text; info_text: Text;
@@ -121,14 +124,17 @@ export type EventBody =
   | { type: "request.setStatus"; requestId: string; status: "new" | "done" | "rejected" }
   // údržba (servery): vybavené žiadosti po 7 dňoch, zamietnuté po 30 dňoch zmazať
   | { type: "request.maintain" }
-  | { type: "company.create"; company: { id: string; name: string; ico: Text }; owner: NewUser; credit_cents: number; requestId: Text }
+  | { type: "company.create"; company: { id: string; name: string; ico: Text }; owner: NewUser; credit_cents: number; requestId: Text; prices?: DefaultPrice[] }
   | { type: "company.setSuspended"; companyId: string; suspended: boolean }
   // totálna blokácia: nikto z firmy sa neprihlási ani nič nezapíše (firma ani dáta sa nemažú)
   | { type: "company.setBlocked"; companyId: string; blocked: boolean }
   | { type: "company.newCode"; companyId: string }
   | { type: "site.update"; patch: SitePatch }
   // ceny: zmena platí o 31 dní (dovtedy sa dá zrušiť), majitelia dostanú e-mail a bublinu na Prehľade
-  | { type: "price.schedule"; changeId: string; monthly_fee_cents: number; storage_cents_per_gb: number }
+  | { type: "price.schedule"; changeId: string; monthly_fee_cents: number; storage_cents_per_gb: number; fee_mode?: FeeMode }
+  // individuálna cena firmy (len webmaster; null = cenník webu)
+  // individuálna cena a odpustenie prevádzky (len webmaster; null = cenník webu / bez odpustenia)
+  | { type: "company.setPricing"; companyId: string; fee_cents: number | null; fee_mode: FeeMode | null; fee_waived_until?: string | null }
   | { type: "price.cancel"; changeId: string }
   | { type: "price.ack"; changeId: string }
   | { type: "price.apply" }
@@ -304,6 +310,24 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString();
   };
+  /** Najvyšší počet ľudí vo firme v tomto mesiaci (prevádzka na osobu). */
+  /** Majitelia, ktorých sa zmena cien týka (firmy s vlastnou cenou prevádzky len pri zmene ceny úložiska). */
+  const priceOwners = (storageChanged: boolean) =>
+    all<{ user_id: string; own: number }>(
+      `SELECT m.user_id, MAX(c.fee_cents IS NOT NULL OR c.fee_mode IS NOT NULL) AS own
+         FROM company_members m JOIN companies c ON c.id = m.company_id
+        WHERE m.role = 'owner' AND (? = 1 OR (c.fee_cents IS NULL AND c.fee_mode IS NULL))
+        GROUP BY m.user_id ORDER BY m.user_id`,
+      storageChanged ? 1 : 0
+    );
+  const bumpPeak = (companyId: string) => {
+    const n = get<{ n: number }>("SELECT COUNT(*) AS n FROM company_members WHERE company_id = ?", companyId)!.n;
+    run(
+      `INSERT INTO member_peaks (company_id, month, peak) VALUES (?, ?, ?)
+       ON CONFLICT(company_id, month) DO UPDATE SET peak = MAX(peak, excluded.peak)`,
+      companyId, ev.at.slice(0, 7), n
+    );
+  };
   const plusMinutes = (iso: string, min: number) => new Date(Date.parse(iso) + min * 60_000).toISOString();
   const ownersOf = (companyId: string) =>
     all<{ user_id: string }>("SELECT user_id FROM company_members WHERE company_id = ? AND role = 'owner' ORDER BY created_at", companyId)
@@ -336,12 +360,12 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
   };
   /** Naplánované zmeny cien, ktorých čas prišiel, sa prepíšu do platných cien. */
   const applyDuePrices = (at: string) => {
-    const due = all<{ id: string; new_fee_cents: number; new_storage_cents: number }>(
-      "SELECT id, new_fee_cents, new_storage_cents FROM price_changes WHERE status = 'pending' AND effective_at <= ? ORDER BY effective_at",
+    const due = all<{ id: string; new_fee_cents: number; new_storage_cents: number; new_mode: string | null }>(
+      "SELECT id, new_fee_cents, new_storage_cents, new_mode FROM price_changes WHERE status = 'pending' AND effective_at <= ? ORDER BY effective_at",
       at
     );
     for (const c of due) {
-      run("UPDATE site_settings SET monthly_fee_cents = ?, storage_cents_per_gb = ? WHERE id = 1", c.new_fee_cents, c.new_storage_cents);
+      run("UPDATE site_settings SET monthly_fee_cents = ?, storage_cents_per_gb = ?, fee_mode = COALESCE(?, fee_mode) WHERE id = 1", c.new_fee_cents, c.new_storage_cents, c.new_mode);
       run("UPDATE price_changes SET status = 'applied', done_at = ? WHERE id = ?", at, c.id);
     }
     return due.length;
@@ -572,11 +596,14 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       const companyName = text(r.company_name, 200) ?? reject("invalid");
       const contactName = text(r.contact_name, 200) ?? reject("invalid");
       if (r.logo_path && !r.logo_path.startsWith(`requests/${r.id}/`)) reject("forbidden");
+      const people = r.people == null ? null : cents(r.people);
+      const storageGb = r.storage_gb == null ? null : cents(r.storage_gb);
+      if ((people !== null && (people < 1 || people > 10_000)) || (storageGb !== null && (storageGb < 0 || storageGb > 1_000_000))) reject("invalid");
       run(
-        `INSERT INTO account_requests (id, company_name, contact_name, email, phone, ico, message, logo_path, logo_size, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO account_requests (id, company_name, contact_name, email, phone, ico, message, logo_path, logo_size, people, storage_gb, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         r.id, companyName, contactName, validEmail(r.email), text(r.phone, 50), text(r.ico, 20), text(r.message, 4000),
-        r.logo_path || null, r.logo_path ? cents(r.logo_size ?? 0) : 0, ev.at
+        r.logo_path || null, r.logo_path ? cents(r.logo_size ?? 0) : 0, people, storageGb, ev.at
       );
       enqueue("wr", "wm_request", WEBMASTER, null, { company: companyName, contact: contactName, email: r.email.trim().toLowerCase() });
       return;
@@ -614,15 +641,29 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
         ev.company.id, name, text(ev.company.ico, 20), no, vs, newLoginCode(name), ev.at
       );
       insertUser(ev.owner, ev.company.id, "owner", []);
+      bumpPeak(ev.company.id);
       run("UPDATE companies SET primary_owner_id = ? WHERE id = ?", ev.owner.id, ev.company.id);
       DEFAULT_CATEGORIES.forEach((name, i) =>
         run("INSERT INTO price_categories (id, company_id, name, position) VALUES (?, ?, ?, ?)", `${ev.company.id}:cat:${i}`, ev.company.id, name, i)
       );
+      // základný cenník (položky sú v udalosti; staršie udalosti ho nemajú)
+      if ((ev.prices?.length ?? 0) > 200) reject("invalid");
+      (ev.prices ?? []).forEach((p, i) => {
+        const pname = text(p.name, 200) ?? reject("invalid");
+        const price = Number(p.unit_price);
+        if (!Number.isFinite(price) || price < 0) reject("invalid");
+        const cat = p.cat != null && p.cat >= 0 && p.cat < DEFAULT_CATEGORIES.length ? `${ev.company.id}:cat:${p.cat}` : null;
+        run(
+          `INSERT INTO price_items (id, company_id, name, unit, unit_price, vat_rate, is_labor, category_id, created_at)
+           VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+          `${ev.id}:price:${i}`, ev.company.id, pname, text(p.unit, 20) ?? "ks", price, bool(!!p.is_labor), cat, ev.at
+        );
+      });
       if (cents(ev.credit_cents) < 0) reject("invalid");
       if (ev.credit_cents > 0) credit(ev.company.id, `${ev.id}:credit`, ev.credit_cents, "topup", null);
       // prevádzka sa platí vopred: prvý mesiac pomerne od dňa založenia
       const month = ev.at.slice(0, 7);
-      const fee = proratedFee(siteSettings(db).monthly_fee_cents, month, Number(ev.at.slice(8, 10)));
+      const fee = proratedFee(companyFee(db, ev.company.id, siteSettings(db), month).cents, month, Number(ev.at.slice(8, 10)));
       if (fee > 0) credit(ev.company.id, `${ev.id}:fee`, -fee, "fee", month);
       if (ev.requestId) {
         // logo zo žiadosti sa stane logom firmy (a počíta sa do jej úložiska)
@@ -633,6 +674,16 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
         }
         run("UPDATE account_requests SET status = 'done', status_at = ?, company_id = ? WHERE id = ?", ev.at, ev.company.id, ev.requestId);
       }
+      return;
+    }
+    case "company.setPricing": {
+      webmasterOnly();
+      company(ev.companyId);
+      const fee = ev.fee_cents == null ? null : cents(ev.fee_cents);
+      const waived = ev.fee_waived_until ?? null;
+      if ((fee !== null && (fee < 0 || fee > 1_000_000)) || (ev.fee_mode !== null && !["per_user", "per_company"].includes(ev.fee_mode))) reject("invalid");
+      if (waived !== null && !/^\d{4}-(0[1-9]|1[0-2])$/.test(waived)) reject("invalid");
+      run("UPDATE companies SET fee_cents = ?, fee_mode = ?, fee_waived_until = ? WHERE id = ?", fee, ev.fee_mode, waived, ev.companyId);
       return;
     }
     case "company.setBlocked": {
@@ -673,31 +724,36 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       const fee = cents(ev.monthly_fee_cents), storagePrice = cents(ev.storage_cents_per_gb);
       if (fee < 0 || storagePrice < 0 || fee > 1_000_000 || storagePrice > 1_000_000) reject("invalid");
       const cur = siteSettings(db);
+      const mode: FeeMode = ev.fee_mode ?? cur.fee_mode;
+      if (!["per_user", "per_company"].includes(mode)) reject("invalid");
       // nová zmena nahrádza doterajšiu naplánovanú
       run("UPDATE price_changes SET status = 'cancelled', done_at = ? WHERE status = 'pending'", ev.at);
-      if (fee === cur.monthly_fee_cents && storagePrice === cur.storage_cents_per_gb) return;
+      if (fee === cur.monthly_fee_cents && storagePrice === cur.storage_cents_per_gb && mode === cur.fee_mode) return;
       if (!get("SELECT 1 FROM companies LIMIT 1")) {
         // ešte nikto neplatí – platí hneď
-        run("UPDATE site_settings SET monthly_fee_cents = ?, storage_cents_per_gb = ? WHERE id = 1", fee, storagePrice);
+        run("UPDATE site_settings SET monthly_fee_cents = ?, storage_cents_per_gb = ?, fee_mode = ? WHERE id = 1", fee, storagePrice, mode);
         return;
       }
       const effective = plusDays(ev.at, PRICE_NOTICE_DAYS);
       run(
-        `INSERT INTO price_changes (id, created_at, effective_at, old_fee_cents, new_fee_cents, old_storage_cents, new_storage_cents)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ev.changeId, ev.at, effective, cur.monthly_fee_cents, fee, cur.storage_cents_per_gb, storagePrice
+        `INSERT INTO price_changes (id, created_at, effective_at, old_fee_cents, new_fee_cents, old_storage_cents, new_storage_cents, old_mode, new_mode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ev.changeId, ev.at, effective, cur.monthly_fee_cents, fee, cur.storage_cents_per_gb, storagePrice, cur.fee_mode, mode
       );
-      const data = { oldFee: cur.monthly_fee_cents, newFee: fee, oldStorage: cur.storage_cents_per_gb, newStorage: storagePrice, effective };
-      const owners = all<{ user_id: string }>("SELECT DISTINCT user_id FROM company_members WHERE role = 'owner' ORDER BY user_id");
-      for (const o of owners) enqueue(`p:${o.user_id}`, "price_change", o.user_id, null, data, { force: true });
+      const data = { oldFee: cur.monthly_fee_cents, newFee: fee, oldStorage: cur.storage_cents_per_gb, newStorage: storagePrice, oldMode: cur.fee_mode, newMode: mode, effective };
+      // firmy s vlastnou cenou prevádzky sa týka len zmena ceny úložiska
+      const storageChanged = storagePrice !== cur.storage_cents_per_gb;
+      for (const o of priceOwners(storageChanged)) enqueue(`p:${o.user_id}`, "price_change", o.user_id, null, { ...data, own: o.own }, { force: true });
       return;
     }
     case "price.cancel": {
       webmasterOnly();
-      const c = get<{ effective_at: string }>("SELECT effective_at FROM price_changes WHERE id = ? AND status = 'pending'", ev.changeId) ?? reject("not_found");
+      const c = get<{ effective_at: string; old_storage_cents: number; new_storage_cents: number }>(
+        "SELECT effective_at, old_storage_cents, new_storage_cents FROM price_changes WHERE id = ? AND status = 'pending'", ev.changeId
+      ) ?? reject("not_found");
       run("UPDATE price_changes SET status = 'cancelled', done_at = ? WHERE id = ?", ev.at, ev.changeId);
-      const owners = all<{ user_id: string }>("SELECT DISTINCT user_id FROM company_members WHERE role = 'owner' ORDER BY user_id");
-      for (const o of owners) enqueue(`pc:${o.user_id}`, "price_cancel", o.user_id, null, { effective: c.effective_at }, { force: true });
+      // zrušenie dostanú tí istí majitelia ako oznámenie o zmene
+      for (const o of priceOwners(c.old_storage_cents !== c.new_storage_cents)) enqueue(`pc:${o.user_id}`, "price_cancel", o.user_id, null, { effective: c.effective_at }, { force: true });
       return;
     }
     case "price.ack": {
@@ -881,6 +937,7 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       const perms = role === "owner" ? [] : normalizePerms(ev.perms ?? (ev.role === "manager" ? PRESETS.manager : PRESETS.worker));
       checkGrant(ev.companyId, [], perms);
       const name = insertUser(ev.user, ev.companyId, role, perms, legacy);
+      bumpPeak(ev.companyId);
       // človek, ktorého odobrali a znova pridali pod rovnakým menom, dostane späť svoje hodiny
       run(
         `UPDATE time_entries SET user_id = ? WHERE company_id = ? AND user_name = ?
@@ -1026,13 +1083,13 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
           if (gbm > 0) credit(c.id, `${ev.id}:s:${c.id}`, -storageCharge, "storage", `${prev}:${gbm}`);
         }
         if (created < month && !c.suspended) {
-          fee = settings.monthly_fee_cents;
-          credit(c.id, `${ev.id}:f:${c.id}`, -fee, "fee", month);
+          fee = companyFee(db, c.id, settings, month, prev).cents;
+          if (fee) credit(c.id, `${ev.id}:f:${c.id}`, -fee, "fee", month);
         }
         if (!fee && !storageCharge) continue;
         // vyúčtovanie a upozornenie na kredit (na ďalší mesiac treba aspoň poplatok + úložisko ako teraz)
         const balance = company(c.id).credit_cents;
-        const need = settings.monthly_fee_cents + storageCharge;
+        const need = companyFee(db, c.id, settings, nextMonth(month)).cents + storageCharge;
         for (const o of ownersOf(c.id)) {
           enqueue(`b:${c.id}:${o}`, "billing", o, c.id, { month, prev, fee, storage: storageCharge, gbm, balance });
           if (balance < need) enqueue(`l:${c.id}:${o}`, "credit_low", o, c.id, { balance, need, negative: balance < 0 });

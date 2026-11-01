@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MAIN_TERMS } from "@/lib/main-site";
 import { redirect } from "next/navigation";
 import { getContext } from "@/lib/company";
 import { submitOr } from "@/server/actions";
@@ -46,7 +47,10 @@ export default async function Home() {
   const invoices = showInvoices ? listInvoices(company.id, 5) : [];
   const unpaid = showInvoices ? invoiceTotals(company.id).filter((i) => i.status === "draft" || i.status === "sent") : [];
   const est = showCredits ? monthEstimate(company) : null;
-  const notice = role === "owner" ? priceNotice(user.id) : undefined;
+  // firma s vlastnou cenou prevádzky vidí len zmenu ceny úložiska
+  const ownPrice = company.fee_cents != null || company.fee_mode != null;
+  const notice = role === "owner" ? priceNotice(user.id, ownPrice) : undefined;
+  const feeUnit = (m: string | null) => (m === "per_company" ? t.request.perMonth : t.request.perPersonMonth);
 
   return (
     <>
@@ -56,11 +60,13 @@ export default async function Home() {
             {notice.status === "applied" ? h.priceApplied(date(notice.effective_at.slice(0, 10))) : h.priceComing(date(notice.effective_at.slice(0, 10)))}
           </p>
           <ul>
-            {notice.old_fee_cents !== notice.new_fee_cents && <li>{h.priceFee(credits(notice.old_fee_cents), credits(notice.new_fee_cents))}</li>}
+            {!ownPrice && (notice.old_fee_cents !== notice.new_fee_cents || (notice.old_mode ?? null) !== (notice.new_mode ?? null)) && (
+              <li>{h.priceFee(`${credits(notice.old_fee_cents)} ${feeUnit(notice.old_mode)}`, `${credits(notice.new_fee_cents)} ${feeUnit(notice.new_mode)}`)}</li>
+            )}
             {notice.old_storage_cents !== notice.new_storage_cents && <li>{h.priceStorage(credits(notice.old_storage_cents), credits(notice.new_storage_cents))}</li>}
           </ul>
           <div className="bubble-foot">
-            <span>{h.priceCredit} <Link href="/terms">{t.app.terms}</Link></span>
+            <span>{h.priceCredit} <a href={MAIN_TERMS}>{t.app.terms}</a></span>
             <form action={ackPrice}>
               <input type="hidden" name="id" value={notice.id} />
               <button className="small">{h.understood}</button>

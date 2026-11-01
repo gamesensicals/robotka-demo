@@ -94,11 +94,12 @@ export default async function Credits() {
           <dd>
             {credits(est.feeCents + est.storageCents)}{" "}
             <span className="muted">
-              ({t.tx.fee} {credits(est.feeCents)} + {t.tx.storage} {est.gbMonths} {c.gbMonth} × {credits(s.storage_cents_per_gb)})
+              ({!est.fee.waived && <>{t.tx.fee} {est.fee.mode === "per_user" ? `${est.fee.units} × ${credits(est.fee.unit)}` : credits(est.feeCents)} + </>}
+              {t.tx.storage} {est.gbMonths} {c.gbMonth} × {credits(s.storage_cents_per_gb)})
             </span>
           </dd>
         </dl>
-        <div className="panel-body"><p className="muted">{c.howItWorks}</p></div>
+        <div className="panel-body"><p className="muted">{c.howItWorks(est.fee.mode === "per_user")}</p></div>
       </section>
 
       <div className="cols-2">

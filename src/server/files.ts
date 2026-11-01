@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { dataDir } from "./db";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { SyncError } from "./sync";
@@ -6,7 +7,7 @@ import { SyncError } from "./sync";
 // DEMO: fotky a logá ležia na disku servera (DATA_DIR/files). Pri hodinovom resete sa zmažú.
 // Prehliadač ich načíta cez /files/<kľúč> s podpisom (rovnaký princíp ako v ostrej Robotke).
 
-export const filesDir = () => path.join(process.env.DATA_DIR || path.join(process.cwd(), "data"), "files");
+export const filesDir = () => path.join(dataDir(), "files");
 /** Cesta na disku; kľúč nesmie vyjsť z priečinka so súbormi. */
 export function filePath(key: string): string | null {
   if (!key || key.includes("..") || key.startsWith("/") || key.includes("\\")) return null;

@@ -3,6 +3,7 @@ import { demoSignIn } from "@/app/demo-actions";
 import { DEMO_COMPANY_ID, DEMO_MEMBERS, DEMO_OWNER } from "@/server/demo-seed";
 import { getCompany } from "@/server/queries";
 import { ensureSeeded } from "@/server/sync";
+import { resetEvery } from "@/server/demo";
 
 /** Úvod dema: prihlasovacie údaje a prihlásenie jedným klikom. */
 export default async function DemoBox() {
@@ -43,7 +44,7 @@ export default async function DemoBox() {
           <span>{d.username}: <code>{jozef.username}</code></span>
           <span>{d.password}: <code>{jozef.password}</code></span>
         </>)}
-        <p className="muted small-note">{d.resetNote}</p>
+        <p className="muted small-note">{d.resetNote(resetEvery(t))}</p>
       </div>
     </section>
   );

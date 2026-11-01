@@ -6,7 +6,9 @@ import { getT } from "@/i18n";
 import Crumbs from "@/components/Crumbs";
 import { MIN_PASSWORD, fail, submitOr, textOf } from "@/server/actions";
 import { hashPassword } from "@/server/auth";
+import { WAIVED_FOREVER, siteSettings } from "@/server/billing";
 import { monthEstimate } from "@/server/credits";
+import { getDb } from "@/server/db";
 import { TICKET_PRIORITIES, type TicketAudience, type TicketPriority, WEBMASTER } from "@/server/events";
 import { deleteFile } from "@/server/files";
 import { startBypass } from "../../bypass-actions";
@@ -87,6 +89,28 @@ async function openChat(formData: FormData) {
   redirect(`/webmaster/support/${ticketId}?ok=ticket_opened`);
 }
 
+/** Individuálna cena a odpustenie prevádzky – len webmaster, firma o tom nevie. */
+async function setPricing(formData: FormData) {
+  "use server";
+  await requireWebmaster();
+  const back = backOf(formData);
+  const raw = String(formData.get("fee") ?? "").trim().replace(",", ".");
+  const fee = raw === "" ? null : Math.round(Number(raw) * 100);
+  if (fee !== null && (!Number.isFinite(fee) || fee < 0)) fail(back, "invalid");
+  const mode = String(formData.get("fee_mode") ?? "");
+  const waive = String(formData.get("waive") ?? "none");
+  const until = String(formData.get("waive_until") ?? "");
+  if (waive === "until" && !/^\d{4}-(0[1-9]|1[0-2])$/.test(until)) fail(back, "invalid");
+  await submitOr(back, {
+    type: "company.setPricing",
+    companyId: idOf(formData),
+    fee_cents: fee,
+    fee_mode: mode === "per_user" || mode === "per_company" ? mode : null,
+    fee_waived_until: waive === "forever" ? WAIVED_FOREVER : waive === "until" ? until : null,
+  }, WEBMASTER);
+  redirect(`${back}?ok=saved`);
+}
+
 async function newCode(formData: FormData) {
   "use server";
   await requireWebmaster();
@@ -114,6 +138,10 @@ export default async function CompanyDetail({ params, searchParams }: { params: 
   const pending = pendingTopups(id);
   const history = creditHistory(id, 50);
   const est = monthEstimate(company);
+  const site = siteSettings(getDb());
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const waivedNow = !!company.fee_waived_until && thisMonth <= company.fee_waived_until;
+  const euro = (cents: number) => (cents / 100).toFixed(2);
   const hidden = <input type="hidden" name="company_id" value={id} />;
 
   return (
@@ -127,6 +155,12 @@ export default async function CompanyDetail({ params, searchParams }: { params: 
           <dt>{c.status}</dt><dd>{company.blocked ? <span className="badge badge-cancelled">{w.blockedState}</span> : company.suspended ? c.suspended : isReadOnly(company) ? c.readOnly : c.active}</dd>
           <dt>{c.storageNow}</dt><dd>{fmtBytes(company.storage_bytes, locale)}</dd>
           <dt>{c.nextCharge}</dt><dd>{credits(est.feeCents + est.storageCents)} <span className="muted">({est.gbMonths} {c.gbMonth})</span></dd>
+          <dt>{w.feeNow}</dt>
+          <dd>
+            {est.fee.waived ? <span className="badge badge-done">{w.feeWaivedBadge}</span>
+              : est.fee.mode === "per_user" ? `${est.fee.units} × ${credits(est.fee.unit)} = ${credits(est.fee.cents)}` : credits(est.fee.cents)}
+            {(company.fee_cents != null || company.fee_mode != null) && <span className="muted"> · {w.ownPrice}</span>}
+          </dd>
           <dt>{c.vs}</dt><dd>{company.vs}</dd>
           <dt>{t.team.code}</dt><dd className="code-box">{company.login_code}</dd>
           <dt>{w.createdAt}</dt><dd>{date(company.created_at)}</dd>
@@ -169,6 +203,45 @@ export default async function CompanyDetail({ params, searchParams }: { params: 
           </form>
         </div>
       </section>
+
+      <details className="panel create" id="pricing">
+        <summary className="panel-title">{w.pricingLegend}</summary>
+        <form action={setPricing} className="panel-body">
+          {hidden}
+          <p className="muted small-note" style={{ marginBottom: 12 }}>{w.pricingHint(`${credits(site.monthly_fee_cents)} ${t.pricing.per[site.fee_mode]}`)}</p>
+          <div className="fields">
+            <label className="field">{w.ownFee}
+              <input name="fee" inputMode="decimal" defaultValue={company.fee_cents == null ? "" : euro(company.fee_cents)} placeholder={euro(site.monthly_fee_cents)} />
+            </label>
+            <label className="field">{w.feeMode}
+              <select name="fee_mode" defaultValue={company.fee_mode ?? ""}>
+                <option value="">{w.siteMode(t.pricing.modes[site.fee_mode])}</option>
+                <option value="per_user">{t.pricing.modes.per_user}</option>
+                <option value="per_company">{t.pricing.modes.per_company}</option>
+              </select>
+            </label>
+          </div>
+          <fieldset style={{ marginTop: 14 }}>
+            <legend>{w.waiveLegend}</legend>
+            <div className="fields">
+              <label className="field">{w.waive}
+                <select name="waive" defaultValue={!company.fee_waived_until ? "none" : company.fee_waived_until === WAIVED_FOREVER ? "forever" : "until"}>
+                  <option value="none">{w.waiveNone}</option>
+                  <option value="until">{w.waiveUntilOpt}</option>
+                  <option value="forever">{w.waiveForever}</option>
+                </select>
+              </label>
+              <label className="field">{w.waiveUntil}
+                <input name="waive_until" type="month" min={thisMonth} defaultValue={company.fee_waived_until && company.fee_waived_until !== WAIVED_FOREVER ? company.fee_waived_until : ""} />
+              </label>
+            </div>
+            <p className="muted small-note" style={{ marginTop: 8 }}>
+              {waivedNow ? (company.fee_waived_until === WAIVED_FOREVER ? w.waivedForever : w.waivedUntil(company.fee_waived_until!)) : company.fee_waived_until ? w.waiveEnded(company.fee_waived_until) : w.waiveHint}
+            </p>
+          </fieldset>
+          <div className="actions" style={{ marginTop: 14 }}><button className="primary">{t.common.save}</button></div>
+        </form>
+      </details>
 
       <details className="panel create" id="chat" open={sp.chat === "1"}>
         <summary className="panel-title">＋ {w.newChat}</summary>

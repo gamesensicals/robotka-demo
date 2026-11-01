@@ -6,15 +6,19 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 import Crumbs from "@/components/Crumbs";
 import TeamTable from "@/components/team/TeamTable";
 import { listMembers } from "@/server/queries";
+import { monthEstimate } from "@/server/credits";
 import { newCompanyCode } from "./actions";
 
 const BACK = "/admin/employees";
 
 export default async function Employees() {
-  const [{ company, user, role, perms, has }, { t }, h] = await Promise.all([requirePerm("company.team", "company.code"), getT(), headers()]);
+  const [{ company, user, role, perms, has }, { t, credits }, h] = await Promise.all([requirePerm("company.team", "company.code"), getT(), headers()]);
   const e = t.employees;
   const origin = config("app_url")?.replace(/\/$/, "") || `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
   const teamLink = `${origin}/team/${company.login_code}`;
+  // pri cene na osobu: koľko stojí každý ďalší človek (vidí len ten, kto vidí kredity)
+  const fee = has("company.credits") ? monthEstimate(company).fee : null;
+  const seatPrice = fee && fee.mode === "per_user" && !fee.waived && fee.unit > 0 ? credits(fee.unit) : undefined;
 
   return (
     <>
@@ -46,6 +50,7 @@ export default async function Employees() {
             members={listMembers(company.id)}
             me={{ id: user.id, isWebmaster: false, isOwner: role === "owner", perms }}
             back={BACK}
+            seatPrice={seatPrice}
           />
         </section>
       )}

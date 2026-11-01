@@ -8,6 +8,10 @@ import { ensureSeeded, markEmpty } from "./sync";
 
 export const RESET_MINUTES = Math.max(1, Number(process.env.DEMO_RESET_MINUTES) || 60);
 
+/** „každú celú hodinu“ / „každých N minút“ podľa nastavenia (text v pruhu a na úvode). */
+export const resetEvery = (t: { demo: { everyHour: string; everyMinutes: (n: number) => string } }) =>
+  RESET_MINUTES === 60 ? t.demo.everyHour : t.demo.everyMinutes(RESET_MINUTES);
+
 /** Najbližší reset (zarovnaný na celé hodiny, resp. násobky RESET_MINUTES). */
 export const nextReset = (now = Date.now()) => {
   const step = RESET_MINUTES * 60_000;

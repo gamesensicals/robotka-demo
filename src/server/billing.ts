@@ -4,7 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 //   GB-mesiac = priemer denných VRCHOLOV obsadeného miesta za obdobie,
 //   zaokrúhlený NAHOR na celý GB-mesiac (1,1 -> 2), bez GB zadarmo.
 //   Príklad: 1 GB 5 dní, potom 3 GB 25 dní (30-dňový mesiac) = (1·5 + 3·25) / 30 = 2,66 -> 3 GB-mesiace.
-// Cena za GB-mesiac a mesačný poplatok sú v nastaveniach webu (predvolené 0,12 € a 9 €).
+// Cena za GB-mesiac a mesačný poplatok sú v nastaveniach webu (predvolené 0,12 € a 15 € za osobu).
 // Všetko je deterministické (len z databázy a dátumov v udalostiach), aby to sedelo na všetkých serveroch.
 
 export const GB = 2 ** 30;
@@ -58,7 +58,30 @@ export const proratedFee = (feeCents: number, month: string, day: number) =>
 
 export type SiteSettings = {
   operator_name: string | null; iban: string | null; contact_email: string | null; contact_phone: string | null;
-  info_text: string | null; monthly_fee_cents: number; storage_cents_per_gb: number;
+  info_text: string | null; monthly_fee_cents: number; storage_cents_per_gb: number; fee_mode: FeeMode;
 };
+export type FeeMode = "per_user" | "per_company";
+
+/** Natrvalo odpustená prevádzka. */
+export const WAIVED_FOREVER = "9999-12";
+
+/**
+ * Prevádzka firmy za mesiac `month`: cena (individuálna firmy, inak cenník webu) × počet ľudí, ak sa
+ * platí na osobu. Počet ľudí = aspoň najvyšší počet v mesiaci `peakMonth` (aby sa nedalo ľudí na deň
+ * vyúčtovania odobrať). Odpustená prevádzka (len webmaster) = 0.
+ */
+export function companyFee(db: DatabaseSync, companyId: string, settings: Pick<SiteSettings, "monthly_fee_cents" | "fee_mode">, month: string, peakMonth?: string) {
+  const c = db.prepare("SELECT fee_cents, fee_mode, fee_waived_until FROM companies WHERE id = ?").get(companyId) as
+    { fee_cents: number | null; fee_mode: FeeMode | null; fee_waived_until: string | null } | undefined;
+  const unit = c?.fee_cents ?? settings.monthly_fee_cents;
+  const mode: FeeMode = c?.fee_mode ?? settings.fee_mode ?? "per_user";
+  const people = (db.prepare("SELECT COUNT(*) AS n FROM company_members WHERE company_id = ?").get(companyId) as { n: number }).n;
+  const peak = peakMonth
+    ? ((db.prepare("SELECT peak FROM member_peaks WHERE company_id = ? AND month = ?").get(companyId, peakMonth) as { peak: number } | undefined)?.peak ?? 0)
+    : 0;
+  const units = mode === "per_user" ? Math.max(1, people, peak) : 1;
+  const waived = !!c?.fee_waived_until && month <= c.fee_waived_until;
+  return { unit, mode, units, people, waived, cents: waived ? 0 : unit * units };
+}
 
 export const siteSettings = (db: DatabaseSync) => db.prepare("SELECT * FROM site_settings WHERE id = 1").get() as SiteSettings;

@@ -11,6 +11,8 @@ export type Company = {
   iban: string | null; logo_path: string | null; is_vat_payer: boolean; default_vat_rate: number;
   invoice_prefix: string; invoice_footer: string | null;
   company_no: number; vs: string; login_code: string; primary_owner_id: string | null; credit_cents: number; storage_bytes: number; logo_size: number; suspended: boolean; blocked: boolean; created_at: string;
+  /** len pre webmastra: individuálna cena a odpustená prevádzka */
+  fee_cents: number | null; fee_mode: "per_user" | "per_company" | null; fee_waived_until: string | null;
 };
 export type Customer = {
   id: string; name: string; ico: string | null; dic: string | null; ic_dph: string | null;
@@ -190,7 +192,7 @@ export const companiesOverview = () =>
 export type AccountRequestRow = {
   id: string; company_name: string; contact_name: string; email: string; phone: string | null; ico: string | null;
   message: string | null; status: "new" | "done" | "rejected"; created_at: string;
-  logo_path: string | null; company_id: string | null;
+  logo_path: string | null; company_id: string | null; people: number | null; storage_gb: number | null;
 };
 export const accountRequests = () =>
   all<AccountRequestRow>("SELECT * FROM account_requests ORDER BY CASE status WHEN 'new' THEN 0 ELSE 1 END, created_at DESC");
@@ -298,16 +300,18 @@ export function ticketsNeedMaintenance(nowIso: string, idleDays: number) {
 export type PriceChange = {
   id: string; created_at: string; effective_at: string; old_fee_cents: number; new_fee_cents: number;
   old_storage_cents: number; new_storage_cents: number; status: "pending" | "applied" | "cancelled"; done_at: string | null;
+  old_mode: "per_user" | "per_company" | null; new_mode: "per_user" | "per_company" | null;
 };
 export const pendingPriceChange = () => one<PriceChange>("SELECT * FROM price_changes WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1");
 /** Zmena ceny, ktorú majiteľ ešte nepotvrdil „Rozumiem“ (ohlásená alebo nedávno platná). */
-export const priceNotice = (userId: string) =>
+export const priceNotice = (userId: string, ownPrice = false) =>
   one<PriceChange>(
     `SELECT p.* FROM price_changes p
       WHERE (p.status = 'pending' OR (p.status = 'applied' AND p.effective_at >= ?))
         AND NOT EXISTS (SELECT 1 FROM price_change_acks a WHERE a.change_id = p.id AND a.user_id = ?)
+        AND (? = 0 OR p.old_storage_cents <> p.new_storage_cents)
       ORDER BY p.created_at DESC LIMIT 1`,
-    new Date(Date.now() - 60 * 86_400_000).toISOString(), userId
+    new Date(Date.now() - 60 * 86_400_000).toISOString(), userId, ownPrice ? 1 : 0
   );
 export type OutboxEntry = {
   id: string; kind: string; recipient: string; created_at: string; due_at: string; status: "pending" | "sent" | "failed" | "skipped";

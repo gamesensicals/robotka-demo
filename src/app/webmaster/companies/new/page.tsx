@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DEFAULT_PRICES } from "@/server/default-prices";
 import { redirect } from "next/navigation";
 import { requireWebmaster } from "@/lib/company";
 import { getT } from "@/i18n";
@@ -24,6 +25,7 @@ async function createCompany(formData: FormData) {
     owner: { id: randomUUID(), email: String(formData.get("email") ?? ""), password_hash: await hashPassword(password) },
     credit_cents: credit,
     requestId,
+    prices: DEFAULT_PRICES,
   }, WEBMASTER);
   redirect(`/webmaster/companies/${id}?ok=company_created`);
 }

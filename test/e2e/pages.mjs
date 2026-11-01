@@ -259,10 +259,10 @@ async function run() {
   }
 
   const roles = [
-    ...(WM ? [{ label: "webmaster", login: (p) => loginEmail(p, WM), seeds: ["/webmaster", "/account", "/terms"] }] : []),
-    { label: "majitel", login: (p) => loginEmail(p, OWNER), seeds: ["/", "/admin", "/account", "/terms"] },
-    ...team.map((m) => ({ label: m.label, login: (p) => loginTeam(p, code, m), seeds: ["/", "/admin", "/account", "/terms"] })),
-    { label: "navstevnik", login: async () => {}, seeds: ["/login", "/team", `/team/${code}`, "/request-account", "/terms"] },
+    ...(WM ? [{ label: "webmaster", login: (p) => loginEmail(p, WM), seeds: ["/webmaster", "/account"] }] : []),
+    { label: "majitel", login: (p) => loginEmail(p, OWNER), seeds: ["/", "/admin", "/account"] },
+    ...team.map((m) => ({ label: m.label, login: (p) => loginTeam(p, code, m), seeds: ["/", "/admin", "/account"] })),
+    { label: "navstevnik", login: async () => {}, seeds: ["/login", "/team", `/team/${code}`, "/request-account"] },
   ];
 
   try {

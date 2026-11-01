@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireWebmaster } from "@/lib/company";
 import { getT } from "@/i18n";
+import { siteSettings } from "@/server/billing";
+import { getDb } from "@/server/db";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import Crumbs from "@/components/Crumbs";
 import { submitOr } from "@/server/actions";
@@ -20,8 +22,9 @@ async function setStatus(formData: FormData) {
 }
 
 export default async function Requests() {
-  const [, { t, date }] = await Promise.all([requireWebmaster(), getT()]);
+  const [, { t, date, credits }] = await Promise.all([requireWebmaster(), getT()]);
   const w = t.webmaster;
+  const s = siteSettings(getDb());
   const requests = accountRequests();
 
   return (
@@ -40,6 +43,7 @@ export default async function Requests() {
                     {r.logo_path && <img src={signedFileUrl(r.logo_path)} alt="" className="req-logo" />}
                     <span className="row-title">{r.company_name}</span>
                     {r.ico && <span className="muted">{t.common.ico}: {r.ico}</span>}
+                    {(r.people || r.storage_gb != null) && <span className="muted">{w.requestEstimate(r.people ?? 1, r.storage_gb ?? 0, credits((s.fee_mode === "per_user" ? (r.people ?? 1) : 1) * s.monthly_fee_cents + (r.storage_gb ?? 0) * s.storage_cents_per_gb))}</span>}
                     {r.message && <span className="muted" style={{ whiteSpace: "pre-line" }}>{r.message}</span>}
                   </td>
                   <td className="contact">

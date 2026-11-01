@@ -37,7 +37,8 @@ async function schedulePrices(formData: FormData) {
   const fee = centsOf(formData, "monthly_fee");
   const storage = centsOf(formData, "storage_price");
   if (!Number.isFinite(fee) || !Number.isFinite(storage) || fee < 0 || storage < 0) fail(BACK, "invalid");
-  await submitOr(BACK, { type: "price.schedule", changeId: randomUUID(), monthly_fee_cents: fee, storage_cents_per_gb: storage }, WEBMASTER);
+  const fee_mode = formData.get("fee_mode") === "per_company" ? "per_company" : "per_user";
+  await submitOr(BACK, { type: "price.schedule", changeId: randomUUID(), monthly_fee_cents: fee, storage_cents_per_gb: storage, fee_mode }, WEBMASTER);
   redirect(`${BACK}?ok=prices_scheduled`);
 }
 
@@ -64,7 +65,7 @@ export default async function SiteSettingsPage() {
       <section className="panel">
         <h2 className="panel-title">{w.pricesLegend}</h2>
         <dl className="stats">
-          <dt>{w.monthlyFeeNow}</dt><dd>{credits(s.monthly_fee_cents)}</dd>
+          <dt>{w.monthlyFeeNow}</dt><dd>{credits(s.monthly_fee_cents)} {t.pricing.per[s.fee_mode]}</dd>
           <dt>{w.storagePriceNow}</dt><dd>{credits(s.storage_cents_per_gb)}</dd>
         </dl>
         {pending && (
@@ -72,7 +73,7 @@ export default async function SiteSettingsPage() {
             <p>
               <strong>{w.priceChangeFrom(date(pending.effective_at.slice(0, 10)))}</strong>{" "}
               {w.priceChangeLine(
-                credits(pending.old_fee_cents), credits(pending.new_fee_cents),
+                `${credits(pending.old_fee_cents)} ${t.pricing.per[pending.old_mode ?? s.fee_mode]}`, `${credits(pending.new_fee_cents)} ${t.pricing.per[pending.new_mode ?? s.fee_mode]}`,
                 credits(pending.old_storage_cents), credits(pending.new_storage_cents)
               )}
             </p>
@@ -87,6 +88,12 @@ export default async function SiteSettingsPage() {
             <legend>{w.newPrices}</legend>
             <div className="fields">
               <label className="field">{w.monthlyFee} <input name="monthly_fee" inputMode="decimal" required defaultValue={euro(pending?.new_fee_cents ?? s.monthly_fee_cents)} /></label>
+              <label className="field">{w.feeMode}
+                <select name="fee_mode" defaultValue={pending?.new_mode ?? s.fee_mode}>
+                  <option value="per_user">{t.pricing.modes.per_user}</option>
+                  <option value="per_company">{t.pricing.modes.per_company}</option>
+                </select>
+              </label>
               <label className="field">{w.storagePrice} <input name="storage_price" inputMode="decimal" required defaultValue={euro(pending?.new_storage_cents ?? s.storage_cents_per_gb)} /></label>
             </div>
             <p className="muted small-note" style={{ marginTop: 12 }}>{anyCompany ? w.pricesHint(PRICE_NOTICE_DAYS) : w.pricesHintNow}</p>

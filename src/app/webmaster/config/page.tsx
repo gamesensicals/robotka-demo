@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import { DEFAULT_DEMO_URL } from "@/server/config";
 import { redirect } from "next/navigation";
 import { requireWebmaster } from "@/lib/company";
 import { getT } from "@/i18n";
@@ -11,7 +12,7 @@ import { sealSecret } from "@/server/secret";
 
 const BACK = "/webmaster/config";
 /** Polia, ktoré sa dajú meniť (heslo webmastra má vlastný formulár). */
-const EDITABLE: ConfigKey[] = ["polar_access_token", "polar_webhook_secret", "polar_product_id", "polar_server", "app_url", "webmaster_email", "dev_origins"];
+const EDITABLE: ConfigKey[] = ["polar_access_token", "polar_webhook_secret", "polar_product_id", "polar_server", "app_url", "webmaster_email", "dev_origins", "demo_url"];
 
 async function saveConfig(formData: FormData) {
   "use server";
@@ -30,6 +31,7 @@ async function saveConfig(formData: FormData) {
   }
   if (patch.app_url && !/^https?:\/\/[^\s/]+/.test(patch.app_url)) fail(BACK, "invalid");
   if (patch.app_url) patch.app_url = patch.app_url.replace(/\/+$/, "");
+  if (patch.demo_url && !/^https?:\/\/[^\s/]+/.test(patch.demo_url)) fail(BACK, "invalid");
   await submitOr(BACK, { type: "config.set", patch }, WEBMASTER);
   redirect(`${BACK}?ok=saved`);
 }
@@ -115,6 +117,7 @@ export default async function ConfigPage() {
               {plain("app_url", k.appUrl, { placeholder: "https://robotka.beer" })}
               {plain("webmaster_email", k.webmasterEmail, { type: "email" })}
               {plain("dev_origins", k.devOrigins, { placeholder: "192.168.1.20" })}
+              {plain("demo_url", k.demoUrl, { placeholder: DEFAULT_DEMO_URL })}
             </div>
             <p className="muted small-note">{k.devHint}</p>
           </fieldset>

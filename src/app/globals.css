@@ -424,6 +424,7 @@ dialog.confirm .actions button { font-weight: 700; }
 .combo-list.empty { padding: 8px; color: var(--muted); font-size: 13px; }
 .combo-list li.picked { box-shadow: inset 3px 0 0 var(--accent); }
 .search-select { min-width: 220px; }
+.fields .search-select { min-width: 0; width: 100%; }
 .toolbar .search-select { flex: 1 1 260px; }
 .lines-foot { margin-top: 10px; align-items: flex-start; }
 .lines-totals { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 18px; text-align: right; }
@@ -461,7 +462,12 @@ dialog.confirm .actions button { font-weight: 700; }
 .ok-text { color: #cfe8a0; }
 .bad-text { color: #ffb4ab; }
 .backup-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; text-align: left; }
-.price-ro { align-items: center; padding: 6px 0; }
+/* cenník len na čítanie */
+.price-table th, .price-table td { padding: 8px 22px; }
+.price-table th.num { text-align: right; }
+.price-table .price-cat td { padding-top: 16px; color: var(--accent); font-weight: 700; font-size: 15px; border-left: 0; }
+.price-table tr:first-child.price-cat td { border-top: 0; }
+@media screen and (max-width: 560px) { .price-table th, .price-table td { padding: 8px 10px; } }
 /* tím: oprávnenia pri členovi */
 .perm-row > td { padding-top: 0; }
 details.perms > summary { cursor: pointer; color: var(--link); padding: 6px 0; }
@@ -514,6 +520,14 @@ td.contact a { white-space: nowrap; }
 .price-bubble button { background: #8b6cd9; border-color: #8b6cd9; color: #fff; font-weight: 700; }
 .price-bubble button:hover { background: #a185e6; }
 .price-pending { border-left: 4px solid #8b6cd9; }
+/* odhad ceny v žiadosti o účet */
+.price-calc .fields { margin-bottom: 12px; }
+.price-calc .field .small-note { font-weight: 400; }
+.calc-table { border: 2px solid var(--row-line); margin-bottom: 10px; }
+.calc-table td { padding: 8px 12px; }
+.calc-table tr:first-child td { border-top: 0; }
+.calc-table .calc-total td { font-weight: 700; }
+@media (max-width: 560px) { .calc-table td { padding: 8px; font-size: 14px; } }
 .perm-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .perm-list .check { font-weight: 400; }
 .mail-history td .by { display: block; }

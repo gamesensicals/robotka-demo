@@ -168,19 +168,38 @@ export default async function Prices({ searchParams }: { searchParams: Promise<{
           <span className="title-stats">{filtered ? t.search.found(shown.length, all.length) : p.note}</span>
         </h2>
         {groups.length === 0 && <div className="panel-body"><p className="muted">{filtered ? t.search.nothing : p.empty}</p></div>}
-        {groups.map((g) => (
+        {!canEdit && groups.length > 0 && (
+          // len na čítanie: obyčajná tabuľka, kategórie ako medzititulky
+          <div className="table-wrap">
+            <table className="price-table">
+              <thead>
+                <tr><th>{t.common.name}</th><th>{p.unit}</th><th className="num">{p.price}</th><th className="num">{p.vat}</th></tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => [
+                  <tr key={`g-${g.id || "none"}`} className="price-cat">
+                    <td colSpan={4}>{g.name} <span className="muted">({g.items.length})</span></td>
+                  </tr>,
+                  ...g.items.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.name}</td>
+                      <td>{row.unit}</td>
+                      <td className="num">{money(Number(row.unit_price))}</td>
+                      <td className="num">{row.vat_rate == null ? <span className="muted" title={p.vatDefault}>{company.default_vat_rate} %</span> : `${row.vat_rate} %`}</td>
+                    </tr>
+                  )),
+                ])}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {canEdit && groups.map((g) => (
           <div key={g.id || "none"} className="price-group">
             <h3>{g.name} <span className="muted">({g.items.length})</span></h3>
             <div className="price-row price-head muted" aria-hidden>
               <span>{t.common.name}</span><span>{p.unit}</span><span>{p.price}</span><span>{p.vat}</span><span>{p.category}</span><span /><span />
             </div>
-            {g.items.map((row) => !canEdit ? (
-              <div key={row.id} className="price-row price-ro">
-                <span>{row.name}</span><span>{row.unit}</span><span className="num">{money(Number(row.unit_price))}</span>
-                <span>{row.vat_rate == null ? p.vatDefault : `${row.vat_rate} %`}</span>
-                <span>{catOptions.find((c) => c.id === (row.category_id ?? ""))?.name}</span><span /><span />
-              </div>
-            ) : (
+            {g.items.map((row) => (
               <form key={row.id} action={updatePrice} className="price-row">
                 <input type="hidden" name="id" value={row.id} />
                 <input name="name" defaultValue={row.name} aria-label={t.common.name} />
