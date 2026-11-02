@@ -93,7 +93,8 @@ const linksOf = (page) =>
     const out = new Set();
     for (const a of document.querySelectorAll("a[href]")) {
       const u = new URL(a.getAttribute("href"), location.href);
-      if (u.origin !== base || u.pathname.startsWith("/api/") || a.getAttribute("download") !== null && false) continue;
+      // súbory (logo, fotky) nie sú stránky – neotvárať
+      if (u.origin !== base || u.pathname.startsWith("/api/") || u.pathname.startsWith("/files/") || u.pathname.endsWith("/logo")) continue;
       u.hash = "";
       out.add(u.pathname + u.search);
     }

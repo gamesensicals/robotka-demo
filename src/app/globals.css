@@ -320,6 +320,8 @@ button:disabled { opacity: .45; cursor: default; }
 .photos .doc span { display: block; font-size: 28px; color: #f0a39c; }
 .photos .doc small { font-weight: 400; color: var(--muted); word-break: break-all; }
 .time-fields { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+/* poznámka k hodinám je dlhší text – na širšej obrazovke cez dva stĺpce */
+@media screen and (min-width: 761px) { .time-fields .field:has(> input[name=note]) { grid-column: span 2; } }
 .month-label { font-size: 17px; min-width: 160px; text-align: center; text-transform: capitalize; }
 .line-head { font-size: 13px; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
 td .material { display: block; white-space: pre-line; font-size: 13px; }
