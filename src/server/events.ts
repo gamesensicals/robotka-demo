@@ -43,7 +43,8 @@ export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
 export const TICKET_IDLE_DAYS = 7;
 export const TICKET_DELETE_DAYS = 7;
 /** Predvolené kategórie cenníka pre každú firmu (dajú sa premenovať, pridať, zmazať). */
-export const DEFAULT_CATEGORIES = ["Káble", "Ističe", "Chráničky", "S-boxy"];
+/** Kategórie firiem založených pred tým, ako sa názvy kategórií posielali v udalosti (nemeniť – prepočet logu). */
+export const LEGACY_CATEGORIES = ["Káble", "Ističe", "Chráničky", "S-boxy"];
 
 /** Vystavená faktúra sa po kliknutí na Zmazať zmaže až po tejto dobe (dovtedy sa dá obnoviť). */
 export const INVOICE_DELETE_DAYS = 16;
@@ -124,7 +125,7 @@ export type EventBody =
   | { type: "request.setStatus"; requestId: string; status: "new" | "done" | "rejected" }
   // údržba (servery): vybavené žiadosti po 7 dňoch, zamietnuté po 30 dňoch zmazať
   | { type: "request.maintain" }
-  | { type: "company.create"; company: { id: string; name: string; ico: Text }; owner: NewUser; credit_cents: number; requestId: Text; prices?: DefaultPrice[] }
+  | { type: "company.create"; company: { id: string; name: string; ico: Text }; owner: NewUser; credit_cents: number; requestId: Text; categories?: string[]; prices?: DefaultPrice[] }
   | { type: "company.setSuspended"; companyId: string; suspended: boolean }
   // totálna blokácia: nikto z firmy sa neprihlási ani nič nezapíše (firma ani dáta sa nemažú)
   | { type: "company.setBlocked"; companyId: string; blocked: boolean }
@@ -643,8 +644,11 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       insertUser(ev.owner, ev.company.id, "owner", []);
       bumpPeak(ev.company.id);
       run("UPDATE companies SET primary_owner_id = ? WHERE id = ?", ev.owner.id, ev.company.id);
-      DEFAULT_CATEGORIES.forEach((name, i) =>
-        run("INSERT INTO price_categories (id, company_id, name, position) VALUES (?, ?, ?, ?)", `${ev.company.id}:cat:${i}`, ev.company.id, name, i)
+      // kategórie cenníka: z udalosti, staršie udalosti ich nemajú (vtedy pôvodné štyri)
+      const cats = ev.categories ?? LEGACY_CATEGORIES;
+      if (cats.length > 20) reject("invalid");
+      cats.forEach((cname, i) =>
+        run("INSERT INTO price_categories (id, company_id, name, position) VALUES (?, ?, ?, ?)", `${ev.company.id}:cat:${i}`, ev.company.id, text(cname, 60) ?? reject("invalid"), i)
       );
       // základný cenník (položky sú v udalosti; staršie udalosti ho nemajú)
       if ((ev.prices?.length ?? 0) > 200) reject("invalid");
@@ -652,7 +656,7 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
         const pname = text(p.name, 200) ?? reject("invalid");
         const price = Number(p.unit_price);
         if (!Number.isFinite(price) || price < 0) reject("invalid");
-        const cat = p.cat != null && p.cat >= 0 && p.cat < DEFAULT_CATEGORIES.length ? `${ev.company.id}:cat:${p.cat}` : null;
+        const cat = p.cat != null && p.cat >= 0 && p.cat < cats.length ? `${ev.company.id}:cat:${p.cat}` : null;
         run(
           `INSERT INTO price_items (id, company_id, name, unit, unit_price, vat_rate, is_labor, category_id, created_at)
            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)`,

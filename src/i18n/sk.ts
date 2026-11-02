@@ -511,6 +511,7 @@ export const sk = {
     usersShort: "používateľov",
     contact: "Kontakt",
     noRequests: "Zatiaľ žiadne žiadosti",
+    showLogo: "Zobraziť logo",
     requestsCleanup: "Vybavené žiadosti sa zmažú po 7 dňoch, zamietnuté po 30 dňoch (aj s logom).",
     requestStatus: { new: "Nová", done: "Vybavená", rejected: "Zamietnutá" },
     createCompany: "Založiť firmu",

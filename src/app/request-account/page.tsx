@@ -92,7 +92,7 @@ export async function RequestAccountForm({ searchParams }: { searchParams: Promi
             <section className="panel">
               <h2 className="panel-title">{r.pricingTitle}</h2>
               <div className="table-wrap">
-                <table>
+                <table className="keep-table">
                   <tbody>
                     <tr><td className="row-title">{r.feeLabel}</td><td className="num">{credits(s.monthly_fee_cents)} {r.perMonth}</td></tr>
                     <tr><td className="row-title">{r.storageLabel}</td><td className="num">{credits(s.storage_cents_per_gb)} {r.perGbMonth}</td></tr>

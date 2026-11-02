@@ -357,7 +357,7 @@ export default async function CompanyDetail({ params, searchParams }: { params: 
               {history.map((h) => (
                 <tr key={h.id}>
                   <td>{date(h.at)}</td>
-                  <td>{t.tx[h.kind]}</td>
+                  <td className="m-left">{t.tx[h.kind]}</td>
                   <td>{h.kind === "storage" && h.note ? `${h.note.split(":")[0]} · ${h.note.split(":")[1]} ${c.gbMonth}` : h.note === "card" ? c.byCard : h.note === "card refund" ? c.cardRefund : h.note ?? ""}</td>
                   <td className={`num ${h.amount_cents < 0 ? "neg" : "pos"}`}>{h.amount_cents > 0 ? "+" : ""}{credits(h.amount_cents)}</td>
                 </tr>

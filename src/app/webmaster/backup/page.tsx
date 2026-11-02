@@ -170,7 +170,7 @@ export default async function BackupPage() {
             {o.runs.map((r) => (
               <tr key={r.id}>
                 <td>{r.id}</td>
-                <td className="nowrap">
+                <td className="nowrap m-left">
                   {dateTime(r.started_at)}
                   <span className="muted by">{b.kinds[r.kind]} · {b.triggers[r.trigger]} · {duration(r.started_at, r.finished_at)}</span>
                 </td>

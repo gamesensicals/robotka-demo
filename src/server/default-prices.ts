@@ -1,6 +1,8 @@
-// Základný cenník, ktorý dostane každá nová firma (majiteľ si ho upraví). Ceny sú orientačné, bez DPH.
-// Pridáva sa v udalosti company.create (položky sú v udalosti), takže zmena tohto zoznamu nezmení
-// cenník firiem, ktoré už existujú. `cat` = poradie v DEFAULT_CATEGORIES (Káble, Ističe, Chráničky, S-boxy).
+// Základný cenník a kategórie, ktoré dostane každá nová firma (majiteľ si ich upraví). Ceny sú orientačné,
+// bez DPH. Posielajú sa v udalosti company.create, takže zmena tohto zoznamu nezmení firmy, ktoré už
+// existujú. `cat` = poradie v DEFAULT_CATEGORY_NAMES.
+
+export const DEFAULT_CATEGORY_NAMES = ["Káble", "Ističe", "Chráničky", "Rozvádzače", "Krabice"];
 
 export type DefaultPrice = { name: string; unit: string; unit_price: number; is_labor?: boolean; cat: number | null };
 
@@ -24,10 +26,13 @@ export const DEFAULT_PRICES: DefaultPrice[] = [
   { name: "Chránička ohybná 25 mm, sivá", unit: "m", unit_price: 0.65, cat: 2 },
   { name: "Chránička ohybná 20 mm, čierna (UV)", unit: "m", unit_price: 0.6, cat: 2 },
   { name: "Chránička do zeme 40 mm, červená", unit: "m", unit_price: 1.3, cat: 2 },
-  // S-boxy a krabice
-  { name: "Rozvodnica 12 modulov", unit: "ks", unit_price: 18, cat: 3 },
-  { name: "Rozvodnica 24 modulov", unit: "ks", unit_price: 32, cat: 3 },
-  { name: "Krabica KU 68", unit: "ks", unit_price: 0.35, cat: 3 },
+  // Rozvádzače
+  { name: "Rozvádzač 12-modulový", unit: "ks", unit_price: 18, cat: 3 },
+  { name: "Rozvádzač 24-modulový", unit: "ks", unit_price: 32, cat: 3 },
+  { name: "Rozvádzač 36-modulový", unit: "ks", unit_price: 48, cat: 3 },
+  // Krabice
+  { name: "Krabica prístrojová KU 68", unit: "ks", unit_price: 0.35, cat: 4 },
+  { name: "Krabica odbočná KO 8", unit: "ks", unit_price: 0.9, cat: 4 },
   // práca a ostatné
   { name: "Práca elektrikára", unit: "hod", unit_price: 28, is_labor: true, cat: null },
   { name: "Revízia elektroinštalácie", unit: "ks", unit_price: 120, is_labor: true, cat: null },

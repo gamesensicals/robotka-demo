@@ -154,7 +154,7 @@ export default async function Home() {
               {myTime.map((e) => (
                 <tr key={e.id}>
                   <td className="nowrap">{date(e.work_date)}</td>
-                  <td>{e.job_id ? <Link href={`/jobs/${e.job_id}#time`} className="row-title">{e.job_title}</Link> : <span className="row-title muted">{e.job_title}</span>}{e.note && <span className="muted">{e.note}</span>}</td>
+                  <td className="m-left">{e.job_id ? <Link href={`/jobs/${e.job_id}#time`} className="row-title">{e.job_title}</Link> : <span className="row-title muted">{e.job_title}</span>}{e.note && <span className="muted">{e.note}</span>}</td>
                   <td className="num">{fmtHours(e.minutes, locale)}</td>
                   <td className="material-cell">{e.material ?? ""}</td>
                 </tr>
@@ -179,7 +179,7 @@ export default async function Home() {
                 {prices.slice(0, PRICE_ROWS).map((p) => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
-                    <td className="muted">{(p.category_id && catNames.get(p.category_id)) || t.prices.noCategory}</td>
+                    <td className="muted m-left">{(p.category_id && catNames.get(p.category_id)) || t.prices.noCategory}</td>
                     <td className="num">{money(Number(p.unit_price))} / {p.unit}</td>
                   </tr>
                 ))}

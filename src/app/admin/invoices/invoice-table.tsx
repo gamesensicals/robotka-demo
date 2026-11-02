@@ -33,7 +33,7 @@ export default async function InvoiceTable({ invoices, actions }: { invoices: In
                 <td className="dotcol"><StatusDot active={i.status === "draft" || i.status === "sent"} /></td>
                 <td><Link href={`/admin/invoices/${i.id}`} className="row-title">{i.number}</Link></td>
                 <td className="nowrap">{date(i.issue_date)}</td>
-                <td>{i.customer_name ?? ""}</td>
+                <td className="m-left">{i.customer_name ?? ""}</td>
                 <td className="num">{money(Number(i.total_gross))}</td>
                 <td>
                   <span className={`badge badge-${i.status}`}>{t.invoiceStatus[i.status]}</span>

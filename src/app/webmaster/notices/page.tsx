@@ -99,7 +99,7 @@ export default async function NoticesPage() {
                 return [
                   <tr key={n.id}>
                     <td className="nowrap">{dateTime(n.starts_at)}<span className="muted by">– {dateTime(n.ends_at)}</span></td>
-                    <td>{nt.audiences[n.audience]}<span className="muted by">{n.dismissible ? nt.canClose : nt.cannotClose}</span></td>
+                    <td className="m-left">{nt.audiences[n.audience]}<span className="muted by">{n.dismissible ? nt.canClose : nt.cannotClose}</span></td>
                     <td className="notice-preview">{n.text_sk || n.text_en || n.text_cs}</td>
                     <td><span className={`badge ${badge[st]}`}>{nt.states[st]}</span></td>
                     <td className="num">

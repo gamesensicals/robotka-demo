@@ -124,7 +124,7 @@ export default async function MailSettingsPage() {
               {history.map((h) => (
                 <tr key={h.id}>
                   <td className="nowrap">{dateTime(h.done_at ?? h.created_at)}</td>
-                  <td>{m.kinds[h.kind as keyof typeof m.kinds] ?? h.kind}</td>
+                  <td className="m-left">{m.kinds[h.kind as keyof typeof m.kinds] ?? h.kind}</td>
                   <td className="nowrap">{h.to_addr ?? h.recipient_email ?? (h.recipient === "webmaster" ? m.webmaster : h.recipient.includes("@") ? h.recipient : "–")}</td>
                   <td>{h.subject ?? ""}{h.error && <span className="muted by">{h.error}</span>}</td>
                   <td className="nowrap">

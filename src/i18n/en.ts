@@ -512,6 +512,7 @@ export const en: Dict = {
     usersShort: "users",
     contact: "Contact",
     noRequests: "No requests yet",
+    showLogo: "Show logo",
     requestsCleanup: "Handled requests are deleted after 7 days, rejected ones after 30 days (including the logo).",
     requestStatus: { new: "New", done: "Done", rejected: "Rejected" },
     createCompany: "Create company",

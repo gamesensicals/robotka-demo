@@ -512,6 +512,7 @@ export const cs: Dict = {
     usersShort: "uživatelů",
     contact: "Kontakt",
     noRequests: "Zatím žádné žádosti",
+    showLogo: "Zobrazit logo",
     requestsCleanup: "Vyřízené žádosti se smažou po 7 dnech, zamítnuté po 30 dnech (i s logem).",
     requestStatus: { new: "Nová", done: "Vyřízená", rejected: "Zamítnutá" },
     createCompany: "Založit firmu",

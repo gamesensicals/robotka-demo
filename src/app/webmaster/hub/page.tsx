@@ -172,8 +172,8 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
             {logs.logs.map((l) => (
               <tr key={l.id}>
                 <td className="nowrap">{dateTime(l.ts)}</td>
-                <td><span className={`badge badge-log-${l.level}`}>{h.levels[l.level]}</span></td>
-                <td className="log-msg">{l.msg}</td>
+                <td className="m-left"><span className={`badge badge-log-${l.level}`}>{h.levels[l.level]}</span></td>
+                <td className="log-msg m-full">{l.msg}</td>
               </tr>
             ))}
           </tbody>

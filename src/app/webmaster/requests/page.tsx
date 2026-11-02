@@ -8,7 +8,6 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 import Crumbs from "@/components/Crumbs";
 import { submitOr } from "@/server/actions";
 import { WEBMASTER } from "@/server/events";
-import { signedFileUrl } from "@/server/files";
 import { accountRequests } from "@/server/queries";
 
 const BACK = "/webmaster/requests";
@@ -40,13 +39,13 @@ export default async function Requests() {
               {requests.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    {r.logo_path && <img src={signedFileUrl(r.logo_path)} alt="" className="req-logo" />}
                     <span className="row-title">{r.company_name}</span>
+                    {r.logo_path && <a href={`/webmaster/requests/${r.id}/logo`} target="_blank" rel="noopener" className="req-logo-link">{w.showLogo}</a>}
                     {r.ico && <span className="muted">{t.common.ico}: {r.ico}</span>}
                     {(r.people || r.storage_gb != null) && <span className="muted">{w.requestEstimate(r.people ?? 1, r.storage_gb ?? 0, credits((s.fee_mode === "per_user" ? (r.people ?? 1) : 1) * s.monthly_fee_cents + (r.storage_gb ?? 0) * s.storage_cents_per_gb))}</span>}
                     {r.message && <span className="muted" style={{ whiteSpace: "pre-line" }}>{r.message}</span>}
                   </td>
-                  <td className="contact">
+                  <td className="contact m-left">
                     {r.contact_name}<br />
                     <a href={`mailto:${r.email}`}>{r.email}</a>
                     {r.phone && <><br /><a href={`tel:${r.phone}`}>{r.phone}</a></>}

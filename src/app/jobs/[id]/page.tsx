@@ -216,7 +216,7 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
               {entries.map((e) => (
                 <tr key={e.id}>
                   <td className="nowrap">{date(e.work_date)}</td>
-                  <td>{e.user_name}{e.created_by_name && <span className="muted by">{tm.loggedBy(e.created_by_name)}</span>}</td>
+                  <td className="m-left">{e.user_name}{e.created_by_name && <span className="muted by">{tm.loggedBy(e.created_by_name)}</span>}</td>
                   <td className="num">{fmtHours(e.minutes, locale)}</td>
                   <td>
                     {e.note ?? ""}

@@ -148,7 +148,7 @@ export default async function Credits() {
                   <tr key={p.id}>
                     <td>{date(p.created_at)}</td>
                     <td className="num">{credits(p.amount_cents)}</td>
-                    <td>
+                    <td className="m-full">
                       {qrs[i] ? (
                         <div className="pay-qr">
                           <img src={qrs[i]!} alt={c.qrTitle} width={132} height={132} />
@@ -177,7 +177,7 @@ export default async function Credits() {
               {history.map((h) => (
                 <tr key={h.id}>
                   <td>{date(h.at)}</td>
-                  <td>{txText(h.kind, h.note)}</td>
+                  <td className="m-left">{txText(h.kind, h.note)}</td>
                   <td className={`num ${h.amount_cents < 0 ? "neg" : "pos"}`}>{h.amount_cents > 0 ? "+" : ""}{credits(h.amount_cents)}</td>
                 </tr>
               ))}

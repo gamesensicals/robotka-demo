@@ -92,7 +92,7 @@ export default async function Customers({ searchParams }: { searchParams: Promis
               {customers.map((cu) => (
                 <tr key={cu.id}>
                   <td><Link href={`/customers/${cu.id}`} className="row-title">{cu.name}</Link>{cu.address && <span className="muted">{cu.address}</span>}</td>
-                  <td>{[cu.zip, cu.city].filter(Boolean).join(" ")}</td>
+                  <td className="m-left">{[cu.zip, cu.city].filter(Boolean).join(" ")}</td>
                   <td>{cu.ico ?? ""}</td>
                   <td>
                     {cu.phone && <a href={`tel:${cu.phone}`}>{cu.phone}</a>}

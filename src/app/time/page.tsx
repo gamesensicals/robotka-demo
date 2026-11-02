@@ -168,8 +168,8 @@ export default async function Time({ searchParams }: { searchParams: Promise<{ m
               {entries.map((e) => (
                 <tr key={e.id}>
                   <td className="nowrap">{date(e.work_date)}</td>
-                  {isManager && <td>{e.user_name}{e.created_by_name && <span className="muted by">{tm.loggedBy(e.created_by_name)}</span>}</td>}
-                  <td>{e.job_id ? <Link href={`/jobs/${e.job_id}#time`}>{e.job_title}</Link> : <span className="muted">{e.job_title}</span>}</td>
+                  {isManager && <td className="m-left">{e.user_name}{e.created_by_name && <span className="muted by">{tm.loggedBy(e.created_by_name)}</span>}</td>}
+                  <td className="m-left">{e.job_id ? <Link href={`/jobs/${e.job_id}#time`}>{e.job_title}</Link> : <span className="muted">{e.job_title}</span>}</td>
                   <td className="num">{fmtHours(e.minutes, locale)}</td>
                   <td>
                     {e.note ?? ""}

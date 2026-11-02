@@ -43,7 +43,7 @@ export default async function WebmasterHome({ searchParams }: { searchParams: Pr
                 {topups.map((p) => (
                   <tr key={p.id}>
                     <td><Link href={`/webmaster/companies/${p.company_id}`} className="row-title">{p.company_name}</Link></td>
-                    <td>{p.vs}</td>
+                    <td className="m-left">{p.vs}</td>
                     <td>{date(p.created_at)}</td>
                     <td className="num">{credits(p.amount_cents)}</td>
                   </tr>
@@ -84,7 +84,7 @@ export default async function WebmasterHome({ searchParams }: { searchParams: Pr
                       <Link href={`/webmaster/companies/${c.id}`} className="row-title">{c.name}</Link>
                       <span className="muted">{t.credits.vs} {c.vs}{c.ico ? ` · ${t.common.ico} ${c.ico}` : ""} · {date(c.created_at)} · {c.members} {w.usersShort}</span>
                     </td>
-                    <td>{c.owner_email ?? ""}</td>
+                    <td className="m-left">{c.owner_email ?? ""}</td>
                     <td className="num">{fmtBytes(c.storage_bytes, locale)}</td>
                     <td className={`num ${c.credit_cents < 0 ? "neg" : ""}`}>{credits(c.credit_cents)}</td>
                     <td>

@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX IF NOT EXISTS customers_company ON customers (company_id);
 
--- Kategórie cenníka: každá firma má svoje (predvolené Káble, Ističe, Chráničky, S-boxy)
+-- Kategórie cenníka: každá firma má svoje (nová firma dostane tie z udalosti company.create)
 CREATE TABLE IF NOT EXISTS price_categories (
   id TEXT PRIMARY KEY,
   company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

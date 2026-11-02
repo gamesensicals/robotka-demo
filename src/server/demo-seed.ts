@@ -1,5 +1,5 @@
 import { PRESETS } from "@/lib/perms";
-import { DEFAULT_PRICES } from "./default-prices";
+import { DEFAULT_CATEGORY_NAMES, DEFAULT_PRICES } from "./default-prices";
 import { hashPassword } from "./auth";
 import { type ErrorCode, type EventBody, type SyncEvent, WEBMASTER } from "./events";
 
@@ -46,7 +46,7 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
   const O = DEMO_OWNER.id;
 
   // firma a ľudia
-  run({ type: "company.create", company: { id: C, name: "Elektro Demo s.r.o.", ico: "12345678" }, owner: { id: O, email: DEMO_OWNER.email, password_hash: h[O] }, credit_cents: 5000, requestId: null }, WEBMASTER);
+  run({ type: "company.create", company: { id: C, name: "Elektro Demo s.r.o.", ico: "12345678" }, owner: { id: O, email: DEMO_OWNER.email, password_hash: h[O] }, credit_cents: 5000, requestId: null, categories: DEFAULT_CATEGORY_NAMES }, WEBMASTER);
   run({
     type: "company.update", companyId: C,
     patch: {
@@ -104,7 +104,7 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
     // kto, zákazka, deň, minúty, poznámka, materiál
     [jozef, "demo-job-rd", -12, 480, "drážky, krabice", "40 m CYKY-J 3x2,5, 25× KU 68"],
     [jozef, "demo-job-rd", -11, 450, "rozvody 1. poschodie", "60 m CYKY-J 3x1,5"],
-    [maria, "demo-job-rd", -10, 300, "rozvádzač", "Rozvodnica 24 modulov, 8× istič B16, chránič 40A"],
+    [maria, "demo-job-rd", -10, 300, "rozvádzač", "Rozvádzač 24-modulový, 8× istič B16, chránič 40A"],
     [jozef, "demo-job-rozvadzac", -6, 240, "demontáž starého rozvádzača", null],
     [O, "demo-job-revizia", -40, 420, "meranie, protokol", null],
     [maria, "demo-job-revizia", -39, 360, "meranie spoločné priestory", null],
@@ -140,7 +140,7 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
   run({ type: "invoice.setStatus", companyId: C, invoiceId: "demo-inv-revizia", status: "paid" }, O);
   inv("demo-inv-obec", "demo-cust-obec", "demo-job-obec", -20, [["Práca elektrikára", "hod", 5.5, 28], ["LED svietidlo verejného osvetlenia", "ks", 6, 89], ["Doprava", "km", 64, 0.45]], "Objednávka č. 12/2026");
   run({ type: "invoice.setStatus", companyId: C, invoiceId: "demo-inv-obec", status: "sent" }, O);
-  inv("demo-inv-rozvadzac", "demo-cust-kovacova", "demo-job-rozvadzac", 0, [["Rozvodnica 24 modulov", "ks", 1, 32], ["Istič B16 1-pólový", "ks", 8, 4.5], ["Práca elektrikára", "hod", 4, 28]], null);
+  inv("demo-inv-rozvadzac", "demo-cust-kovacova", "demo-job-rozvadzac", 0, [["Rozvádzač 24-modulový", "ks", 1, 32], ["Istič B16 1-pólový", "ks", 8, 4.5], ["Práca elektrikára", "hod", 4, 28]], null);
 
   // podpora: ukážkový chat s odpoveďou webmastra
   run({ type: "ticket.open", companyId: C, ticket: { id: "demo-ticket", subject: "Ako pridám nového člena tímu?", priority: "normal" }, message: { id: "demo-msg-1", body: "Dobrý deň, prijali sme nového elektrikára. Ako mu vytvorím prístup?" } }, O);

@@ -76,7 +76,7 @@ export default async function WebmasterSupport({ searchParams }: { searchParams:
                   {tk.unread > 0 && <span className="unread-dot" title={s.unread}>{tk.unread}</span>}
                   <span className="muted">{s.messagesCount(tk.messages)}</span>
                 </td>
-                <td><Link href={`/webmaster/companies/${tk.company_id}`}>{tk.company_name}</Link></td>
+                <td className="m-left"><Link href={`/webmaster/companies/${tk.company_id}`}>{tk.company_name}</Link></td>
                 <td><span className={`badge badge-${tk.priority}`}>{s.priorities[tk.priority]}</span></td>
                 <td>
                   <span className={`badge ${tk.status === "open" ? "badge-paid" : "badge-closed"}`}>{s.statuses[tk.status]}</span>
