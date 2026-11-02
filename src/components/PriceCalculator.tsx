@@ -32,7 +32,7 @@ export default function PriceCalculator({
           <span className="muted small-note">{labels.storageHint}</span>
         </label>
       </div>
-      <table className="calc-table">
+      <table className="calc-table keep-table">
         <tbody>
           <tr><td>{labels.fee}</td><td className="num">{perUser ? `${n} × ${fmt(feeCents)}` : labels.perCompany}</td><td className="num">{fmt(fee)}</td></tr>
           <tr><td>{labels.storageRow}</td><td className="num">{g} GB × {fmt(storageCents)}</td><td className="num">{fmt(storage)}</td></tr>

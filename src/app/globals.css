@@ -358,17 +358,28 @@ td { overflow-wrap: break-word; }
 .inline-details[open] > summary { margin-bottom: 6px; }
 .inline-details form input { width: 170px; padding: 4px 8px; }
 .primary-badge { margin-left: 8px; }
-/* úzka obrazovka: riadok tabuľky sa poskladá pod seba namiesto posúvania */
+/* Úzka obrazovka: riadok tabuľky je kompaktná karta – prvý údaj (názov) na celý riadok,
+   ostatné za sebou menším písmom (bez posúvania do strany). Faktúra a kalkulačka majú vlastné. */
 @media screen and (max-width: 760px) {
-  table thead { display: none; }
-  table, tbody, tr, td { display: block; width: 100%; }
-  tr { border-top: 2px solid var(--row-line); padding: 8px 0; }
-  td { border: 0 !important; padding: 4px 16px; }
-  td.dotcol { display: none; }
+  table:not(.keep-table, .inv-items, .inv-vat) thead { display: none; }
+  table:not(.keep-table, .inv-items, .inv-vat), table:not(.keep-table, .inv-items, .inv-vat) > tbody { display: block; width: 100%; }
+  table:not(.keep-table, .inv-items, .inv-vat) tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 3px 14px;
+    padding: 9px 14px; border-top: 1px solid var(--row-line);
+  }
+  table:not(.keep-table, .inv-items, .inv-vat) > tbody > tr:first-child { border-top: 0; }
+  table:not(.keep-table, .inv-items, .inv-vat) td {
+    display: block; width: auto; max-width: 100%; border: 0 !important; padding: 0; font-size: 13.5px; color: #c4c4c4;
+  }
+  table:not(.keep-table, .inv-items, .inv-vat) td:first-child,
+  table:not(.keep-table, .inv-items, .inv-vat) td.dotcol + td { flex-basis: 100%; font-size: 14.5px; color: var(--text); }
+  table:not(.keep-table, .inv-items, .inv-vat) td.empty { flex-basis: 100%; padding: 8px 0; }
+  table:not(.keep-table, .inv-items, .inv-vat) td.dotcol { display: none; }
+  table:not(.keep-table, .inv-items, .inv-vat) td:empty { display: none; }
   td.num { text-align: left; }
-  .invoice table.inv-items thead { display: table-header-group; }
-  .invoice table.inv-items, .invoice .inv-items tbody { display: table; width: calc(100% - 32px); }
-  .invoice .inv-items tr { display: table-row; } .invoice .inv-items td { display: table-cell; padding: 6px; }
+  tbody tr:hover td { background: none; }
+  .row-title + .muted { font-size: 13px; }
+  .price-table .price-cat td { padding: 6px 0 0; }
 }
 
 /* faktúra na úzkej obrazovke: hlavička pod sebou, položky ako karty s popiskami */
@@ -578,3 +589,46 @@ td.contact a { white-space: nowrap; }
 .demo-account .by { display: block; }
 .demo-creds { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 14px; }
 .demo-creds code { color: var(--accent); font-size: 14px; }
+
+/* ───────── Mobil: menšie písmo a hustejšie rozloženie ───────── */
+@media screen and (max-width: 600px) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { font-size: 14px; line-height: 1.45; }
+  /* pole s písmom pod 16 px by iPhone pri písaní priblížil */
+  input, select, textarea { font-size: 16px; padding: 6px 9px; }
+  .shell { padding: 8px; }
+  main { gap: 12px; margin: 12px 0; }
+  .logo-bar { padding: 10px 14px; }
+  .logo { font-size: 26px; }
+  .topnav { padding: 8px 14px; gap: 4px 16px; font-size: 15px; }
+  .nav-left, .nav-right { gap: 4px 16px; }
+  .nav-right { margin-left: 0; width: 100%; font-size: 14px; }
+  .topnav .who { flex-basis: 100%; font-size: 12.5px; color: var(--muted); order: 9; }
+  .topnav .who strong { color: #cfcfcf; font-weight: 600; }
+  .crumbs { font-size: 14px; }
+  .panel > .panel-title { padding: 9px 14px; font-size: 15px; }
+  .panel-body { padding: 12px 14px; }
+  .panel-foot { padding: 8px 14px; font-size: 14px; }
+  .title-stats { font-size: 12.5px; }
+  .stats { padding: 10px 14px; gap: 4px 10px; font-size: 14px; }
+  .menu { padding: 10px 14px; flex-direction: row; flex-wrap: wrap; gap: 6px 16px; }
+  .menu a { font-size: 14px; }
+  .row-title { font-size: 15px; }
+  .badge { font-size: 12px; padding: 0 6px; }
+  fieldset { padding: 10px 12px 14px; margin-bottom: 14px; }
+  legend { font-size: 14px; padding: 0 6px; }
+  .fields { gap: 10px 12px; }
+  button, a.button, summary.button { padding: 6px 12px; }
+  .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .quick > * { text-align: center; width: 100%; }
+  .big-number { font-size: 24px; }
+  .site-foot { font-size: 13px; }
+  .alert { padding: 8px 12px; }
+  .toolbar { padding: 10px 14px; gap: 8px; }
+  .toolbar input[name=q], .toolbar .search-select { flex: 1 1 100%; }
+  .toolbar select { flex: 1 1 auto; }
+  /* cenník na úpravu: názov položky na celý riadok */
+  .price-row { padding: 6px 14px; }
+  .price-row > input[name=name] { grid-column: 1 / -1; font-weight: 700; }
+}
+@media screen and (max-width: 600px) { .demo-banner { font-size: 12.5px; padding: 6px 12px; margin-bottom: 8px; } }
