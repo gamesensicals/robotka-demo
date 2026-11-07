@@ -35,6 +35,7 @@ export type ErrorCode =
   | "primary_owner" | "not_deletable" | "email_needed" | "username_needed" | "download_first"
   | "ticket_closed" | "item_incomplete" | "not_editable"
   | "mail_not_configured" | "mail_failed" | "notice_dates" | "notice_text" | "time_locked" | "no_recipients" | "company_blocked" | "demo_disabled"
+  | "reverse_charge_vat_id" | "einvoice_seller_dic" | "einvoice_seller_vat" | "einvoice_no_buyer" | "einvoice_buyer_dic"
   | "team_login" | "card_amount" | "hub_error" | "backup_not_configured" | "bad_endpoint" | "bad_key" | "backup_running" | "push_failed";
 
 export const TICKET_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
@@ -116,6 +117,8 @@ export type MailResult = { id: string; ok: boolean; skip?: boolean; error?: Text
 export type PriceData = { name: string; unit: string; unit_price: number; vat_rate: number | null; category_id?: Text };
 export type InvoiceData = {
   id: string; customer_id: Text; job_id: Text; issue_date: string; delivery_date: string; due_date: string; note: Text;
+  /** prenesenie daňovej povinnosti: faktúra bez DPH, daň odvedie odberateľ (musí mať IČ DPH) */
+  reverse_charge?: boolean;
 };
 export type InvoiceLine = { name: string; unit: string; quantity: number; unit_price: number; vat_rate: number };
 
@@ -550,13 +553,18 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
     const j = jobId ? get<{ title: string }>("SELECT title FROM jobs WHERE id = ? AND company_id = ?", jobId, companyId) : undefined;
     return { buyer: c ? JSON.stringify(c) : null, jobTitle: j?.title ?? null };
   };
-  type InvoiceRowIn = { id: string; customer_id: string | null; job_id: string | null; issue_date: string; delivery_date: string; due_date: string; note: Text };
-  /** Položky faktúry (neplatca DPH nikdy neúčtuje DPH) + súčty. */
-  const invoiceLines = (companyId: string, lines: InvoiceLine[]) => {
+  type InvoiceRowIn = { id: string; customer_id: string | null; job_id: string | null; issue_date: string; delivery_date: string; due_date: string; note: Text; reverse_charge?: boolean | number };
+  /**
+   * Položky faktúry + súčty. Neplatca DPH nikdy neúčtuje DPH; pri prenesení daňovej povinnosti je DPH 0
+   * (prenesenie sa dá len u platiteľa a odberateľ musí mať IČ DPH).
+   */
+  const invoiceLines = (companyId: string, lines: InvoiceLine[], reverseCharge: unknown, buyer: string | null) => {
     if (!lines.length) reject("no_items");
     const c = get<{ is_vat_payer: number }>("SELECT is_vat_payer FROM companies WHERE id = ?", companyId) ?? reject("not_found");
-    const items = lines.map((it) => ({ ...it, vat_rate: c.is_vat_payer ? Number(it.vat_rate) : 0 }));
-    return { items, sum: totals(items) };
+    const rc = !!reverseCharge && !!c.is_vat_payer;
+    if (rc && !(buyer && (JSON.parse(buyer) as { ic_dph?: string | null }).ic_dph?.trim())) reject("reverse_charge_vat_id");
+    const items = lines.map((it) => ({ ...it, vat_rate: c.is_vat_payer && !rc ? Number(it.vat_rate) : 0 }));
+    return { items, sum: totals(items), rc };
   };
   const writeItems = (companyId: string, invoiceId: string, items: InvoiceLine[]) => {
     run("DELETE FROM invoice_items WHERE invoice_id = ?", invoiceId);
@@ -569,22 +577,24 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
     );
   };
   /** Nová faktúra s ďalším číslom (číslo prideľuje až apply, takže sa nikdy nezdvojí). */
-  const insertInvoice = (companyId: string, inv: InvoiceRowIn, lines: InvoiceLine[]) => {
-    const { items, sum } = invoiceLines(companyId, lines);
+  const insertInvoice = (companyId: string, inv: InvoiceRowIn, lines: InvoiceLine[], buyerOverride?: string | null) => {
+    const customerId0 = optionalOwned("customers", inv.customer_id, companyId);
+    const buyer0 = snapshot(companyId, customerId0, null).buyer ?? buyerOverride ?? null;
+    const { items, sum, rc } = invoiceLines(companyId, lines, inv.reverse_charge, buyer0);
     const c = get<{ invoice_prefix: string; next_invoice_number: number }>(
       "SELECT invoice_prefix, next_invoice_number FROM companies WHERE id = ?", companyId
     ) ?? reject("not_found");
     const number = `${c.invoice_prefix}${ev.at.slice(0, 4)}${String(c.next_invoice_number).padStart(4, "0")}`;
     run("UPDATE companies SET next_invoice_number = next_invoice_number + 1 WHERE id = ?", companyId);
-    const customerId = optionalOwned("customers", inv.customer_id, companyId);
+    const customerId = customerId0;
     const jobId = optionalOwned("jobs", inv.job_id, companyId);
     const snap = snapshot(companyId, customerId, jobId);
     run(
       `INSERT INTO invoices (id, company_id, customer_id, job_id, number, variable_symbol, issue_date, delivery_date, due_date,
-         note, total_net, total_vat, total_gross, buyer, job_title, created_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         note, reverse_charge, total_net, total_vat, total_gross, buyer, job_title, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       inv.id, companyId, customerId, jobId, number, number.replace(/\D/g, ""), inv.issue_date, inv.delivery_date, inv.due_date,
-      inv.note, sum.net, sum.vat, sum.gross, snap.buyer, snap.jobTitle, ev.actor, ev.at
+      inv.note, rc ? 1 : 0, sum.net, sum.vat, sum.gross, snap.buyer, snap.jobTitle, ev.actor, ev.at
     );
     writeItems(companyId, inv.id, items);
   };
@@ -1415,14 +1425,14 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       const cur = get<{ status: string }>("SELECT status FROM invoices WHERE id = ? AND company_id = ?", ev.invoiceId, ev.companyId) ?? reject("not_found");
       if (cur.status !== "draft") reject("not_editable");
       const inv = ev.invoice;
-      const { items, sum } = invoiceLines(ev.companyId, ev.items);
       const customerId = optionalOwned("customers", inv.customer_id, ev.companyId);
       const jobId = optionalOwned("jobs", inv.job_id, ev.companyId);
       const snap = snapshot(ev.companyId, customerId, jobId);
+      const { items, sum, rc } = invoiceLines(ev.companyId, ev.items, inv.reverse_charge, snap.buyer);
       run(
-        `UPDATE invoices SET customer_id = ?, job_id = ?, issue_date = ?, delivery_date = ?, due_date = ?, note = ?,
+        `UPDATE invoices SET customer_id = ?, job_id = ?, issue_date = ?, delivery_date = ?, due_date = ?, note = ?, reverse_charge = ?,
            total_net = ?, total_vat = ?, total_gross = ?, buyer = ?, job_title = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
-        customerId, jobId, inv.issue_date, inv.delivery_date, inv.due_date, inv.note, sum.net, sum.vat, sum.gross,
+        customerId, jobId, inv.issue_date, inv.delivery_date, inv.due_date, inv.note, rc ? 1 : 0, sum.net, sum.vat, sum.gross,
         snap.buyer, snap.jobTitle, ev.at, ev.actor, ev.invoiceId
       );
       writeItems(ev.companyId, ev.invoiceId, items);
@@ -1433,7 +1443,7 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       can(ev.companyId, "invoices.edit");
       can(ev.companyId, "invoices.create");
       const orig = get<InvoiceRowIn & { status: string; buyer: string | null; job_title: string | null }>(
-        "SELECT id, customer_id, job_id, issue_date, delivery_date, due_date, note, status, buyer, job_title FROM invoices WHERE id = ? AND company_id = ?",
+        "SELECT id, customer_id, job_id, issue_date, delivery_date, due_date, note, reverse_charge, status, buyer, job_title FROM invoices WHERE id = ? AND company_id = ?",
         ev.invoiceId, ev.companyId
       ) ?? reject("not_found");
       if (orig.status !== "sent" && orig.status !== "paid") reject("not_editable");
@@ -1441,7 +1451,7 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
         "SELECT name, unit, quantity, unit_price, vat_rate FROM invoice_items WHERE invoice_id = ? ORDER BY position", ev.invoiceId
       );
       run("UPDATE invoices SET status = 'cancelled', corrected_by = ? WHERE id = ?", ev.newId, ev.invoiceId);
-      insertInvoice(ev.companyId, { ...orig, id: ev.newId }, lines);
+      insertInvoice(ev.companyId, { ...orig, id: ev.newId }, lines, orig.buyer);
       // zákazník/zákazka mohli byť medzitým zmazaní – odberateľ ostane z pôvodnej faktúry
       run("UPDATE invoices SET buyer = COALESCE(buyer, ?), job_title = COALESCE(job_title, ?) WHERE id = ?", orig.buyer, orig.job_title, ev.newId);
       return;

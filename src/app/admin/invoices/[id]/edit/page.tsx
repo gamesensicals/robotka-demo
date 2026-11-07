@@ -44,6 +44,7 @@ export default async function EditInvoice({ params }: { params: Promise<{ id: st
           delivery: inv.delivery_date,
           due: inv.due_date,
           note: inv.note,
+          reverse_charge: !!inv.reverse_charge,
           // položky ako vlastné (názov, cena, jednotka a DPH ostanú)
           rows: invoiceItems(company.id, id).map((it) => ({ name: it.name, qty: fmt(Number(it.quantity)), unitPrice: fmt(Number(it.unit_price)), unit: it.unit, vat: String(it.vat_rate) })),
         }}

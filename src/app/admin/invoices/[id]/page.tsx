@@ -61,6 +61,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
         <div className="panel-body actions">
           <a href={`/admin/invoices/${id}/pdf`} className="button primary">{ti.downloadPdf}</a>
           <PrintButton label={ti.print} pdfUrl={`/admin/invoices/${id}/pdf`} />
+          <a href={`/admin/invoices/${id}/xml`} className="button" title={ti.xmlHint}>{ti.downloadXml}</a>
           {has("invoices.status") && <form action={setStatus} className="actions">
             <input type="hidden" name="id" value={id} />
             <select name="status" defaultValue={inv.status} aria-label={t.common.status} style={{ width: "auto" }}>
@@ -209,6 +210,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             ) : (
               <p><span>{ti.totalPlain}</span><span>{money(Number(inv.total_net))}</span></p>
             )}
+            {!!inv.reverse_charge && <p className="inv-rc"><strong>{ti.reverseCharge}</strong></p>}
             <div className="inv-grand">
               <span>{ti.toPay}</span>
               <strong>{money(Number(inv.total_gross))}</strong>

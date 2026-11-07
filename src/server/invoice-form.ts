@@ -53,5 +53,6 @@ export function invoiceFromForm(formData: FormData): Omit<InvoiceData, "id"> {
     delivery_date: delivery,
     due_date: String(formData.get("due_date") || "") || plusDays(delivery, DUE_DAYS),
     note: textOf(formData, "note"),
+    reverse_charge: formData.get("reverse_charge") === "on",
   };
 }

@@ -279,6 +279,10 @@ export async function renderInvoicePdf(opts: {
   } else {
     line(ti.totalPlain, fmt.money(Number(inv.total_net)));
   }
+  if (inv.reverse_charge) {
+    doc.font("B").fontSize(9).fillColor(DARK).text(ti.reverseCharge, tx, ty, { width: tw });
+    ty += 16;
+  }
   ty += 4;
   doc.roundedRect(tx, ty, tw, 44, 6).fill(DARK);
   doc.font("B").fontSize(8).fillColor(ACCENT).text(ti.toPay.toUpperCase(), tx + 12, ty + 9, { characterSpacing: 0.6 });

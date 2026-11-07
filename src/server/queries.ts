@@ -36,6 +36,8 @@ export type Invoice = InvoiceRow & {
   buyer: string | null; job_title: string | null;
   updated_at: string | null; updated_by: string | null; corrected_by: string | null;
   variable_symbol: string; delivery_date: string; due_date: string; note: string | null; total_net: number; total_vat: number;
+  /** prenesenie daňovej povinnosti (1/0) */
+  reverse_charge: number;
 };
 export type InvoiceItem = { id: string; name: string; unit: string; quantity: number; unit_price: number; vat_rate: number };
 export type PriceItem = { id: string; name: string; unit: string; unit_price: number; vat_rate: number | null; is_labor: number; category_id: string | null };

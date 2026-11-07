@@ -8,6 +8,7 @@ import SearchSelect from "@/components/SearchSelect";
 type Row = { priceId?: string; query?: string; name?: string; qty?: string; unitPrice?: string; unit?: string; vat?: string };
 export type InvoiceFormInitial = {
   customer_id: string | null; job_id: string | null; issue?: string; delivery?: string; due?: string; note: string | null; rows: Row[];
+  reverse_charge?: boolean;
   job?: { id: string; title: string; job_date: string };
 };
 
@@ -66,6 +67,7 @@ export default async function InvoiceForm({
             categories={listCategories(company.id).map((c) => ({ id: c.id, name: c.name }))}
             initial={initial.rows}
             isVatPayer={company.is_vat_payer}
+            reverseCharge={{ initial: !!initial.reverse_charge, label: ti.reverseCharge, hint: ti.reverseChargeHint }}
             defaultVat={Number(company.default_vat_rate)}
             locale={locale}
             labels={{

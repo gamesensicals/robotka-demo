@@ -74,7 +74,7 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
     { id: "demo-cust-kovacova", name: "Mária Kováčová", address: "Štefánikova 21", zip: "917 01", city: "Trnava", phone: "+421 907 333 444" },
     { id: "demo-cust-bd", name: "Bytové družstvo Podunajsko", ico: "31234567", dic: "2021234567", address: "Dunajská 5", zip: "821 08", city: "Bratislava", email: "sprava@example.com" },
     { id: "demo-cust-pekaren", name: "Pekáreň U zlatého klasu s.r.o.", ico: "45678912", dic: "2023456789", ic_dph: "SK2023456789", address: "Námestie SNP 3", zip: "010 01", city: "Žilina" },
-    { id: "demo-cust-obec", name: "Obec Lúčnica", ico: "00312345", address: "Obecný úrad 1", zip: "900 01", city: "Lúčnica" },
+    { id: "demo-cust-obec", name: "Obec Lúčnica", ico: "00312345", dic: "2021000123", address: "Obecný úrad 1", zip: "900 01", city: "Lúčnica" },
     { id: "demo-cust-novotny", name: "Ing. Peter Novotný", address: "Karpatská 40", zip: "811 05", city: "Bratislava", phone: "+421 908 555 666" },
   ];
   for (const c of customers) {
@@ -128,10 +128,10 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
   );
 
   // faktúry: zaplatená, odoslaná, koncept
-  const inv = (id: string, customer: string, job: string, issue: number, items: [string, string, number, number][], note: string | null) => {
+  const inv = (id: string, customer: string, job: string, issue: number, items: [string, string, number, number][], note: string | null, reverse_charge = false) => {
     run({
       type: "invoice.create", companyId: C,
-      invoice: { id, customer_id: customer, job_id: job, issue_date: day(issue), delivery_date: day(issue), due_date: day(issue + 14), note },
+      invoice: { id, customer_id: customer, job_id: job, issue_date: day(issue), delivery_date: day(issue), due_date: day(issue + 14), note, reverse_charge },
       items: items.map(([name, unit, quantity, unit_price]) => ({ name, unit, quantity, unit_price, vat_rate: 23 })),
     }, O);
   };
@@ -140,6 +140,9 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
   run({ type: "invoice.setStatus", companyId: C, invoiceId: "demo-inv-revizia", status: "paid" }, O);
   inv("demo-inv-obec", "demo-cust-obec", "demo-job-obec", -20, [["Práca elektrikára", "hod", 5.5, 28], ["LED svietidlo verejného osvetlenia", "ks", 6, 89], ["Doprava", "km", 64, 0.45]], "Objednávka č. 12/2026");
   run({ type: "invoice.setStatus", companyId: C, invoiceId: "demo-inv-obec", status: "sent" }, O);
+  // stavebné práce pre platiteľa DPH: prenesenie daňovej povinnosti (faktúra bez DPH)
+  inv("demo-inv-pekaren", "demo-cust-pekaren", "demo-job-predajna", -3, [["Práca elektrikára", "hod", 16, 28], ["Kábel CYKY-J 3x1,5", "m", 60, 0.85]], null, true);
+  run({ type: "invoice.setStatus", companyId: C, invoiceId: "demo-inv-pekaren", status: "sent" }, O);
   inv("demo-inv-rozvadzac", "demo-cust-kovacova", "demo-job-rozvadzac", 0, [["Rozvádzač 24-modulový", "ks", 1, 32], ["Istič B16 1-pólový", "ks", 8, 4.5], ["Práca elektrikára", "hod", 4, 28]], null);
 
   // podpora: ukážkový chat s odpoveďou webmastra

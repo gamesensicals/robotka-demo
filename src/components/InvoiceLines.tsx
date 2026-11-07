@@ -21,9 +21,11 @@ const num = (s: string) => Number(s.replace(",", "."));
  * Formulár posiela rovnaké polia ako predtým (price_i, name_i, qty_i, unit_price_i) + počet riadkov.
  */
 export default function InvoiceLines({
-  prices, categories, initial, isVatPayer, defaultVat, locale, labels,
+  prices, categories, initial, isVatPayer, defaultVat, locale, labels, reverseCharge,
 }: {
   prices: Price[]; categories: Category[]; initial: Partial<Row>[]; isVatPayer: boolean; defaultVat: number; locale: string; labels: Labels;
+  /** prenesenie daňovej povinnosti (len platiteľ DPH): faktúra bez DPH */
+  reverseCharge?: { initial: boolean; label: string; hint: string };
 }) {
   const nextKey = useRef(0);
   const blank = (r: Partial<Row> = {}): Row => ({ key: nextKey.current++, priceId: "", query: "", name: "", qty: "", unitPrice: "", unit: "", vat: "", ...r });
@@ -33,6 +35,7 @@ export default function InvoiceLines({
     return start;
   });
   const [cat, setCat] = useState<string>("");
+  const [rc, setRc] = useState(!!reverseCharge?.initial);
   const [open, setOpen] = useState<number | null>(null);
   const [active, setActive] = useState(0);
   const byId = useMemo(() => new Map(prices.map((p) => [p.id, p])), [prices]);
@@ -52,7 +55,7 @@ export default function InvoiceLines({
     const p = r.priceId ? byId.get(r.priceId) : undefined;
     const qty = num(r.qty);
     const unit = r.unitPrice.trim() !== "" ? num(r.unitPrice) : p ? Number(p.unit_price) : NaN;
-    const vat = isVatPayer ? (r.vat !== "" ? Number(r.vat) : Number(p?.vat_rate ?? defaultVat)) : 0;
+    const vat = isVatPayer && !rc ? (r.vat !== "" ? Number(r.vat) : Number(p?.vat_rate ?? defaultVat)) : 0;
     const net = qty > 0 && Number.isFinite(unit) ? Math.round(qty * unit * 100) / 100 : 0;
     return { net, vat: Math.round(((net * vat) / 100) * 100) / 100 };
   };
@@ -155,6 +158,12 @@ export default function InvoiceLines({
           </div>
         );
       })}
+      {isVatPayer && reverseCharge && (
+        <label className="check reverse-charge">
+          <input type="checkbox" name="reverse_charge" checked={rc} onChange={(e) => setRc(e.target.checked)} />
+          <span>{reverseCharge.label}<span className="muted small-note">{reverseCharge.hint}</span></span>
+        </label>
+      )}
       <div className="actions spread lines-foot">
         <button type="button" onClick={() => setRows((rs) => [...rs, blank()])}>＋ {labels.addRow}</button>
         <dl className="lines-totals">

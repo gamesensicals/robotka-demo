@@ -1,7 +1,7 @@
 // Lokálna kópia dát na každom serveri. Pravda je v logu udalostí v hube;
 // táto databáza sa z neho dá kedykoľvek znova poskladať.
 // Pri zmene schémy zvýš verziu: server lokálnu databázu zahodí a poskladá ju znova z hubu.
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export const SCHEMA = `
 -- Majiteľ sa prihlasuje e-mailom, člen tímu kódom firmy + používateľským menom.
@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   due_date TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','paid','cancelled')),
   note TEXT,
+  reverse_charge INTEGER NOT NULL DEFAULT 0, -- prenesenie daňovej povinnosti (stavebné práce pre platiteľa DPH)
   total_net REAL NOT NULL DEFAULT 0,
   total_vat REAL NOT NULL DEFAULT 0,
   total_gross REAL NOT NULL DEFAULT 0,

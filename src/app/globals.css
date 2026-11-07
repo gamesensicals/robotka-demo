@@ -644,3 +644,7 @@ td.contact a { white-space: nowrap; }
   .price-row > input[name=name] { grid-column: 1 / -1; font-weight: 700; }
 }
 @media screen and (max-width: 600px) { .demo-banner { font-size: 13px; padding: 6px 12px; margin-bottom: 8px; } }
+/* prenesenie daňovej povinnosti: voľba vo formulári faktúry a text na faktúre */
+.check.reverse-charge { margin: 12px 0 4px; }
+.check.reverse-charge .small-note { display: block; font-weight: 400; margin-top: 2px; }
+.invoice .inv-rc { margin: 6px 0 0; }

@@ -47,7 +47,7 @@ const pattern = (u) => {
   return path + (keys.length ? "?" + keys.join("&") : "");
 };
 /** Odkazy, ktoré sa neotvárajú ako stránka (súbory) – stačí, že odpovedajú. */
-const isFile = (path) => /\/(pdf|export|csv)(\?|$)|\.(pdf|csv|png|jpe?g|svg|webp|mp4)(\?|$)/i.test(path);
+const isFile = (path) => /\/(pdf|xml|export|csv)(\?|$)|\.(pdf|xml|csv|png|jpe?g|svg|webp|mp4)(\?|$)/i.test(path);
 
 async function newContext(browser, lang, width) {
   const ctx = await browser.newContext({ viewport: { width, height: 900 } });
