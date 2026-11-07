@@ -87,6 +87,7 @@ function demoBlocked(body: EventBody): boolean {
     case "mail.settings":
     case "mail.test":
     case "config.set":
+    case "user.totp.set": // dvojstupňové prihlásenie by zamklo zdieľaný ukážkový účet
     case "account.request":
     case "company.delete":
     case "company.setBlocked":

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { getT } from "@/i18n";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
-import { addMember, removeMember, setMemberPassword, setMemberPerms, setMemberRole } from "@/app/admin/employees/actions";
+import { addMember, removeMember, resetMemberTwoFa, setMemberPassword, setMemberPerms, setMemberRole } from "@/app/admin/employees/actions";
 import { PERM_GROUPS, PRESETS, type Perm, presetOf } from "@/lib/perms";
 import { type Member, loginName } from "@/server/queries";
 
@@ -63,6 +63,7 @@ export default async function TeamTable({
                   <span className="row-title">{loginName(m)}</span>
                   {isMe && <span className="muted"> {e.you}</span>}
                   {isPrimary && <span className="badge badge-paid primary-badge">{e.primaryOwner}</span>}
+                  {!!m.two_fa && <span className="badge primary-badge" title={t.twoFa.title}>{t.twoFa.badge}</span>}
                 </td>
                 <td>
                   {t.role[m.role]}
@@ -71,6 +72,12 @@ export default async function TeamTable({
                 <td className="nowrap">{date(m.created_at)}</td>
                 <td>
                   <div className="member-actions">
+                    {canPassword && !!m.two_fa && (
+                      <form action={resetMemberTwoFa}>
+                        {hidden}<input type="hidden" name="user_id" value={m.id} />
+                        <ConfirmSubmit label={t.twoFa.reset} className="small" question={t.twoFa.resetQ(loginName(m))} yes={t.twoFa.reset} no={cf.cancel} />
+                      </form>
+                    )}
                     {canPassword && (
                       <details className="inline-details">
                         <summary className="button small">{e.setPassword}</summary>

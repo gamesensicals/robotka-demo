@@ -35,6 +35,7 @@ export type ErrorCode =
   | "primary_owner" | "not_deletable" | "email_needed" | "username_needed" | "download_first"
   | "ticket_closed" | "item_incomplete" | "not_editable"
   | "mail_not_configured" | "mail_failed" | "notice_dates" | "notice_text" | "time_locked" | "no_recipients" | "company_blocked" | "demo_disabled"
+  | "wrong_code" | "twofa_expired"
   | "reverse_charge_vat_id" | "einvoice_seller_dic" | "einvoice_seller_vat" | "einvoice_no_buyer" | "einvoice_buyer_dic"
   | "team_login" | "card_amount" | "hub_error" | "backup_not_configured" | "bad_endpoint" | "bad_key" | "backup_running" | "push_failed";
 
@@ -60,6 +61,8 @@ export const TIME_LOCK_DAYS = 62;
 export const CONFIG_KEYS = [
   "polar_access_token", "polar_webhook_secret", "polar_product_id", "polar_server",
   "app_url", "webmaster_email", "webmaster_password_hash", "dev_origins", "demo_url",
+  // dvojstupňové prihlásenie webmastra (kľúč zašifrovaný, záložné kódy ako hashe v JSON)
+  "webmaster_totp", "webmaster_totp_recovery",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 export type TicketAudience = "company" | "support" | "people";
@@ -138,6 +141,10 @@ export type EventBody =
   | { type: "price.schedule"; changeId: string; monthly_fee_cents: number; storage_cents_per_gb: number; fee_mode?: FeeMode }
   // individuálna cena firmy (len webmaster; null = cenník webu)
   // individuálna cena a odpustenie prevádzky (len webmaster; null = cenník webu / bez odpustenia)
+  // dvojstupňové prihlásenie: zapnúť (kľúč zašifrovaný, záložné kódy ako hashe), vypnúť, použiť záložný kód
+  | { type: "user.totp.set"; secret: string; recovery: string[] }
+  | { type: "user.totp.clear"; userId: string }
+  | { type: "user.totp.useRecovery"; hash: string }
   | { type: "company.setPricing"; companyId: string; fee_cents: number | null; fee_mode: FeeMode | null; fee_waived_until?: string | null }
   | { type: "price.cancel"; changeId: string }
   | { type: "price.ack"; changeId: string }
@@ -1019,6 +1026,30 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       company(ev.companyId);
       if (roleOf(ev.companyId, ev.userId) !== "owner") reject("invalid");
       run("UPDATE companies SET primary_owner_id = ? WHERE id = ?", ev.userId, ev.companyId);
+      return;
+    }
+    case "user.totp.set": {
+      // len sám sebe; server pred odoslaním overil kód z aplikácie
+      if (isWebmaster || isSystem || !ev.actor || !get("SELECT 1 FROM users WHERE id = ?", ev.actor)) reject("forbidden");
+      if (!ev.secret || ev.secret.length > 500 || !Array.isArray(ev.recovery) || ev.recovery.length > 20 || ev.recovery.some((h) => !/^[0-9a-f]{64}$/.test(h))) reject("invalid");
+      run("UPDATE users SET totp_secret = ?, totp_recovery = ?, totp_at = ? WHERE id = ?", ev.secret, JSON.stringify(ev.recovery), ev.at, ev.actor);
+      return;
+    }
+    case "user.totp.clear": {
+      // sám sebe, alebo ako nové heslo: majiteľ / člen s oprávnením na tím (nie majiteľom), webmaster
+      if (!get("SELECT 1 FROM users WHERE id = ?", ev.userId)) reject("not_found");
+      if (!isWebmaster && ev.actor !== ev.userId) {
+        const m = get<{ company_id: string }>("SELECT company_id FROM company_members WHERE user_id = ?", ev.userId) ?? reject("forbidden");
+        manageTeam(m.company_id, ev.userId);
+      }
+      run("UPDATE users SET totp_secret = NULL, totp_recovery = NULL, totp_at = NULL WHERE id = ?", ev.userId);
+      return;
+    }
+    case "user.totp.useRecovery": {
+      const u = get<{ totp_recovery: string | null }>("SELECT totp_recovery FROM users WHERE id = ?", ev.actor) ?? reject("forbidden");
+      const left = (JSON.parse(u.totp_recovery ?? "[]") as string[]).filter((h) => h !== ev.hash);
+      if (left.length === (JSON.parse(u.totp_recovery ?? "[]") as string[]).length) reject("not_found");
+      run("UPDATE users SET totp_recovery = ? WHERE id = ?", JSON.stringify(left), ev.actor);
       return;
     }
     case "user.setPassword": {

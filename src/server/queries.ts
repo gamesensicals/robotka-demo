@@ -52,6 +52,9 @@ export type User = { id: string; email: string | null; username: string | null }
 export const loginName = (u: Pick<User, "email" | "username"> & { role?: Role | null }) =>
   (u.role === "member" ? u.username ?? u.email : u.email ?? u.username) ?? "";
 export const userById = (id: string) => one<User>("SELECT id, email, username FROM users WHERE id = ?", id);
+/** Dvojstupňové prihlásenie používateľa (kľúč je zašifrovaný). */
+export const userTotp = (id: string) =>
+  one<{ totp_secret: string | null; totp_recovery: string | null; totp_at: string | null }>("SELECT totp_secret, totp_recovery, totp_at FROM users WHERE id = ?", id);
 export const userByEmail = (email: string) =>
   one<User & { password_hash: string }>("SELECT id, email, username, password_hash FROM users WHERE email = ?", email.trim().toLowerCase());
 export const passwordHashOf = (userId: string) =>
@@ -152,10 +155,10 @@ export const activePrices = (cid: string) =>
   all<PriceItem>("SELECT * FROM price_items WHERE company_id = ? AND active = 1 ORDER BY name", cid);
 
 // ───────── Zamestnanci ─────────
-export type Member = { id: string; email: string | null; username: string | null; role: Role; created_at: string; perms: Perm[] };
+export type Member = { id: string; email: string | null; username: string | null; role: Role; created_at: string; perms: Perm[]; two_fa: number };
 export const listMembers = (cid: string) =>
   all<Omit<Member, "perms"> & { perms: string }>(
-    `SELECT u.id, u.email, u.username, m.role, m.created_at, m.perms FROM company_members m JOIN users u ON u.id = m.user_id
+    `SELECT u.id, u.email, u.username, m.role, m.created_at, m.perms, (u.totp_at IS NOT NULL) AS two_fa FROM company_members m JOIN users u ON u.id = m.user_id
      WHERE m.company_id = ? ORDER BY CASE m.role WHEN 'owner' THEN 0 ELSE 1 END, COALESCE(u.username, u.email)`,
     cid
   ).map((m) => ({ ...m, perms: permsOf(m.role, m.perms) }));

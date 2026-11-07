@@ -15,12 +15,14 @@ export const ENV_NAME: Record<ConfigKey, string> = {
   webmaster_password_hash: "WEBMASTER_PASSWORD_HASH",
   dev_origins: "DEV_ORIGINS",
   demo_url: "DEMO_URL",
+  webmaster_totp: "WEBMASTER_TOTP_SECRET",
+  webmaster_totp_recovery: "WEBMASTER_TOTP_RECOVERY",
 };
 /** Demo na vyskúšanie (odkaz na úvodnej stránke), ak nie je nastavené inak. */
 export const DEFAULT_DEMO_URL = "https://demo.robotka.beer";
 export const demoUrl = () => config("demo_url") || DEFAULT_DEMO_URL;
 /** Tieto sa ukladajú zašifrované. */
-export const SECRET_KEYS: readonly ConfigKey[] = ["polar_access_token", "polar_webhook_secret"];
+export const SECRET_KEYS: readonly ConfigKey[] = ["polar_access_token", "polar_webhook_secret", "webmaster_totp"];
 
 /** Hodnota z panelu (dešifrovaná), alebo null. */
 export function panelValue(key: ConfigKey): string | null {

@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import TwoFactorPanel from "@/components/TwoFactorPanel";
 import { DEFAULT_DEMO_URL } from "@/server/config";
 import { redirect } from "next/navigation";
 import { requireWebmaster } from "@/lib/company";
@@ -124,6 +125,8 @@ export default async function ConfigPage() {
           <div className="actions"><button className="primary">{t.common.save}</button></div>
         </div>
       </form>
+
+      <TwoFactorPanel owner={WEBMASTER} account={webmasterEmail() ?? "webmaster"} />
 
       <form action={changeWebmasterPassword} className="panel">
         <h2 className="panel-title spread-title"><span>{k.password}</span><span className="title-stats">{src("webmaster_password_hash")}</span></h2>

@@ -68,6 +68,13 @@ export async function setMemberPassword(formData: FormData) {
   redirect(`${back}?ok=password_changed`);
 }
 
+/** Člen stratil mobil: vypne mu dvojstupňové prihlásenie (rovnaké pravidlá ako nové heslo). */
+export async function resetMemberTwoFa(formData: FormData) {
+  const { actor, back } = await context(formData);
+  await submitOr(back, { type: "user.totp.clear", userId: String(formData.get("user_id")) }, actor);
+  redirect(`${back}?ok=totp_off`);
+}
+
 export async function setMemberPerms(formData: FormData) {
   const { actor, companyId, back } = await context(formData);
   await submitOr(back, { type: "member.setPermissions", companyId, userId: String(formData.get("user_id")), perms: permsFrom(formData) }, actor);

@@ -1,7 +1,7 @@
 // Lokálna kópia dát na každom serveri. Pravda je v logu udalostí v hube;
 // táto databáza sa z neho dá kedykoľvek znova poskladať.
 // Pri zmene schémy zvýš verziu: server lokálnu databázu zahodí a poskladá ju znova z hubu.
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export const SCHEMA = `
 -- Majiteľ sa prihlasuje e-mailom, člen tímu kódom firmy + používateľským menom.
@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   created_at TEXT NOT NULL,
   mail_off TEXT NOT NULL DEFAULT '',       -- vypnuté e-mailové upozornenia (čiarkami)
-  mail_lang TEXT NOT NULL DEFAULT 'sk'     -- jazyk e-mailov
+  mail_lang TEXT NOT NULL DEFAULT 'sk',    -- jazyk e-mailov
+  -- dvojstupňové prihlásenie: tajný kľúč zašifrovaný kľúčom serverov, záložné kódy len ako hash (JSON)
+  totp_secret TEXT, totp_recovery TEXT, totp_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS companies (

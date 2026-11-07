@@ -9,6 +9,7 @@ import { codeKey, normalizeUsername } from "@/server/login-code";
 import { companyByCode, userByUsername } from "@/server/queries";
 import { blocked, failKey, hit } from "@/server/ratelimit";
 import { TEAM_COOKIE } from "@/server/team";
+import { requireSecondStep } from "@/server/twofa";
 
 // Prihlásenie zamestnancov, krok 2: logo a názov firmy + používateľské meno a heslo.
 async function teamSignIn(formData: FormData) {
@@ -29,6 +30,7 @@ async function teamSignIn(formData: FormData) {
     hit(userKey);
     fail(back, "wrong_login");
   }
+  await requireSecondStep(user.id, "/");
   await startSession(user.id);
   redirect("/");
 }
