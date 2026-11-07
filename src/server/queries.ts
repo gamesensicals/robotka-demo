@@ -1,6 +1,6 @@
 import { all, one } from "./db";
 import { type Perm, PERMS, parsePerms } from "@/lib/perms";
-import type { InvoiceStatus, JobStatus, Role } from "./events";
+import type { InvoiceStatus, JobStatus, QuoteStatus, Role } from "./events";
 
 // Čítanie z lokálnej databázy. Každá funkcia berie companyId a filtruje podľa neho –
 // to nahrádza RLS zo Supabase, takže firma nikdy neuvidí cudzie dáta.
@@ -138,6 +138,24 @@ export const getInvoice = (cid: string, id: string) =>
   one<Invoice & { customer_id: string | null }>(`${INVOICE_SELECT} WHERE i.company_id = ? AND i.id = ?`, cid, id);
 export const invoiceItems = (cid: string, invoiceId: string) =>
   all<InvoiceItem>("SELECT * FROM invoice_items WHERE company_id = ? AND invoice_id = ? ORDER BY position", cid, invoiceId);
+// ───────── Cenové ponuky ─────────
+export type QuoteRow = {
+  id: string; number: string; issue_date: string; valid_until: string; status: QuoteStatus; total_gross: number;
+  customer_name: string | null; invoice_id: string | null; job_id: string | null;
+};
+export type Quote = QuoteRow & {
+  customer_id: string | null; buyer: string | null; job_title: string | null; note: string | null; reverse_charge: number;
+  total_net: number; total_vat: number; created_by: string | null; created_at: string; updated_at: string | null;
+};
+const QUOTE_SELECT = `SELECT q.*, COALESCE(c.name, json_extract(q.buyer, '$.name')) AS customer_name FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id`;
+export const listQuotes = (cid: string, limit = -1) =>
+  all<QuoteRow>(`${QUOTE_SELECT} WHERE q.company_id = ? ORDER BY q.issue_date DESC, q.number DESC LIMIT ?`, cid, limit);
+export const getQuote = (cid: string, id: string) => one<Quote>(`${QUOTE_SELECT} WHERE q.company_id = ? AND q.id = ?`, cid, id);
+export const quoteItems = (cid: string, quoteId: string) =>
+  all<InvoiceItem>("SELECT * FROM quote_items WHERE company_id = ? AND quote_id = ? ORDER BY position", cid, quoteId);
+export const jobQuotes = (cid: string, jobId: string) =>
+  all<QuoteRow>(`${QUOTE_SELECT} WHERE q.company_id = ? AND q.job_id = ? ORDER BY q.issue_date DESC`, cid, jobId);
+
 export const invoiceTotals = (cid: string) =>
   all<{ status: InvoiceStatus; total_gross: number; issue_date: string }>(
     "SELECT status, total_gross, issue_date FROM invoices WHERE company_id = ?", cid

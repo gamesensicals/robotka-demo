@@ -9,13 +9,17 @@ type Row = { priceId?: string; query?: string; name?: string; qty?: string; unit
 export type InvoiceFormInitial = {
   customer_id: string | null; job_id: string | null; issue?: string; delivery?: string; due?: string; note: string | null; rows: Row[];
   reverse_charge?: boolean;
+  /** cenová ponuka: platná do */
+  valid?: string;
   job?: { id: string; title: string; job_date: string };
 };
 
 /** Formulár faktúry – nová aj úprava konceptu. */
 export default async function InvoiceForm({
-  action, company, title, submitLabel, initial, hidden,
+  action, company, title, submitLabel, initial, hidden, kind = "invoice",
 }: {
+  /** "quote" = cenová ponuka (vystavenie + platnosť namiesto dodania a splatnosti) */
+  kind?: "invoice" | "quote";
   action: (formData: FormData) => Promise<void>;
   company: Company;
   title: string;
@@ -52,11 +56,21 @@ export default async function InvoiceForm({
                 options={jobs.map((j) => ({ value: j.id, label: j.title, hint: [date(j.job_date), j.customer_name].filter(Boolean).join(" · ") }))}
               />
             </label>
-            <InvoiceDates
-              today={today}
-              initial={initial.issue && initial.delivery && initial.due ? { issue: initial.issue, delivery: initial.delivery, due: initial.due } : undefined}
-              labels={{ issued: ti.issued, delivery: ti.delivery, due: ti.due, dueHint: ti.dueHint }}
-            />
+            {kind === "quote" ? (
+              <>
+                <label className="field">{ti.issued} <input type="date" name="issue_date" required defaultValue={initial.issue ?? today} /></label>
+                <label className="field">{t.quotes.validUntil}
+                  <input type="date" name="valid_until" defaultValue={initial.valid ?? ""} />
+                  <span className="muted small-note">{t.quotes.validHint}</span>
+                </label>
+              </>
+            ) : (
+              <InvoiceDates
+                today={today}
+                initial={initial.issue && initial.delivery && initial.due ? { issue: initial.issue, delivery: initial.delivery, due: initial.due } : undefined}
+                labels={{ issued: ti.issued, delivery: ti.delivery, due: ti.due, dueHint: ti.dueHint }}
+              />
+            )}
           </div>
         </fieldset>
 

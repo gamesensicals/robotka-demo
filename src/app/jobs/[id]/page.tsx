@@ -10,7 +10,7 @@ import MediaUpload from "@/components/MediaUpload";
 import { fail, submitOr, textOf } from "@/server/actions";
 import { JOB_STATUSES, type JobStatus } from "@/server/events";
 import { deleteFile, signedFileUrl } from "@/server/files";
-import { customerHint, customerOptions, getJob, getPhoto, jobTime, listMembers, listPhotos, loginName } from "@/server/queries";
+import { customerHint, customerOptions, getJob, getPhoto, jobQuotes, jobTime, listMembers, listPhotos, loginName } from "@/server/queries";
 import SearchSelect from "@/components/SearchSelect";
 
 async function deletePhoto(formData: FormData) {
@@ -139,6 +139,17 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
             <p><span className={`badge badge-${job.status}`}>{t.jobStatus[job.status]}</span></p>
           )}
         </div>
+        {has("invoices.view") && (() => {
+          // cenové ponuky k zákazke (a nová ponuka s vyplnenou zákazkou a zákazníkom)
+          const quotes = jobQuotes(company.id, id);
+          return (quotes.length > 0 || has("invoices.create")) && (
+            <div className="panel-foot job-quotes">
+              <span className="muted">{t.quotes.title}:</span>
+              {quotes.map((q) => <Link key={q.id} href={`/admin/quotes/${q.id}`}>{q.number} <span className="muted">({t.quotes.statuses[q.status]})</span></Link>)}
+              {has("invoices.create") && <Link href={`/admin/quotes/new?job=${id}`} className="button small">＋ {t.quotes.newForJob}</Link>}
+            </div>
+          );
+        })()}
         {(has("jobs.edit") || has("jobs.delete")) && (
           <div className="panel-foot job-tools">
             {has("jobs.edit") && (

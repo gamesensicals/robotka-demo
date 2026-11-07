@@ -656,3 +656,7 @@ td.contact a { white-space: nowrap; }
 .twofa-setup img { background: #fff; padding: 6px; border-radius: 4px; }
 .twofa-key { word-break: break-all; }
 .twofa-forms fieldset { margin: 0; height: 100%; }
+/* cenové ponuky */
+.job-quotes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; text-align: left; font-weight: 400; }
+.quote-next { border-top: 1px solid var(--border); padding-top: 12px; }
+.quote-next:empty { display: none; }

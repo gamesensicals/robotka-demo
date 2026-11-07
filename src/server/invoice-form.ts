@@ -1,6 +1,6 @@
 import { DUE_DAYS } from "@/lib/invoice-math";
 import { fail, textOf } from "./actions";
-import type { InvoiceData, InvoiceLine } from "./events";
+import { type InvoiceData, type InvoiceLine, type QuoteData, QUOTE_VALID_DAYS } from "./events";
 import { type Company, activePrices } from "./queries";
 
 // Spoločné spracovanie formulára faktúry (nová aj úprava konceptu).
@@ -52,6 +52,19 @@ export function invoiceFromForm(formData: FormData): Omit<InvoiceData, "id"> {
     issue_date: String(formData.get("issue_date")),
     delivery_date: delivery,
     due_date: String(formData.get("due_date") || "") || plusDays(delivery, DUE_DAYS),
+    note: textOf(formData, "note"),
+    reverse_charge: formData.get("reverse_charge") === "on",
+  };
+}
+
+/** Hlavička cenovej ponuky z formulára (platnosť predvolene 30 dní od vystavenia). */
+export function quoteFromForm(formData: FormData): Omit<QuoteData, "id"> {
+  const issue = String(formData.get("issue_date") || new Date().toISOString().slice(0, 10));
+  return {
+    customer_id: textOf(formData, "customer_id"),
+    job_id: textOf(formData, "job_id"),
+    issue_date: issue,
+    valid_until: String(formData.get("valid_until") || "") || plusDays(issue, QUOTE_VALID_DAYS),
     note: textOf(formData, "note"),
     reverse_charge: formData.get("reverse_charge") === "on",
   };

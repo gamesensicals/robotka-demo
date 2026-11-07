@@ -1,7 +1,7 @@
 // Lokálna kópia dát na každom serveri. Pravda je v logu udalostí v hube;
 // táto databáza sa z neho dá kedykoľvek znova poskladať.
 // Pri zmene schémy zvýš verziu: server lokálnu databázu zahodí a poskladá ju znova z hubu.
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export const SCHEMA = `
 -- Majiteľ sa prihlasuje e-mailom, člen tímu kódom firmy + používateľským menom.
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS companies (
   invoice_prefix TEXT NOT NULL DEFAULT '',
   invoice_footer TEXT,
   next_invoice_number INTEGER NOT NULL DEFAULT 1,
+  next_quote_number INTEGER NOT NULL DEFAULT 1,
   company_no INTEGER NOT NULL,            -- poradové číslo firmy
   vs TEXT NOT NULL UNIQUE,                 -- variabilný symbol pri dobíjaní: YYQRRR (rok, kvartál založenia, 3 náhodné)
   login_code TEXT NOT NULL UNIQUE,         -- kód firmy pre prihlásenie zamestnancov, napr. novak-k7m4
@@ -153,6 +154,43 @@ CREATE TABLE IF NOT EXISTS invoices (
   UNIQUE (company_id, number)
 );
 CREATE INDEX IF NOT EXISTS invoices_company ON invoices (company_id, issue_date DESC);
+
+-- Cenové ponuky: ako faktúra, ale s platnosťou; po prijatí z nich vznikne zákazka a faktúra
+CREATE TABLE IF NOT EXISTS quotes (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  job_id TEXT REFERENCES jobs(id) ON DELETE SET NULL,
+  number TEXT NOT NULL,
+  issue_date TEXT NOT NULL,
+  valid_until TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','accepted','rejected')),
+  note TEXT,
+  reverse_charge INTEGER NOT NULL DEFAULT 0,
+  total_net REAL NOT NULL DEFAULT 0,
+  total_vat REAL NOT NULL DEFAULT 0,
+  total_gross REAL NOT NULL DEFAULT 0,
+  buyer TEXT,                              -- odberateľ v čase vystavenia (JSON)
+  job_title TEXT,
+  invoice_id TEXT,                         -- faktúra vytvorená z ponuky
+  created_by TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  UNIQUE (company_id, number)
+);
+CREATE INDEX IF NOT EXISTS quotes_company ON quotes (company_id, issue_date DESC);
+CREATE TABLE IF NOT EXISTS quote_items (
+  id TEXT PRIMARY KEY,
+  quote_id TEXT NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  unit TEXT NOT NULL DEFAULT 'ks',
+  quantity REAL NOT NULL DEFAULT 1,
+  unit_price REAL NOT NULL DEFAULT 0,
+  vat_rate REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS quote_items_quote ON quote_items (quote_id);
 
 CREATE TABLE IF NOT EXISTS invoice_items (
   id TEXT PRIMARY KEY,

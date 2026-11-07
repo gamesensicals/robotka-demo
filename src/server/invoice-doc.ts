@@ -96,10 +96,14 @@ async function logoBuffer(company: Company): Promise<Buffer | null> {
 
 export async function renderInvoicePdf(opts: {
   company: Company; inv: Invoice; items: InvoiceItem[]; customer?: Customer; jobTitle?: string | null; t: Dict; fmt: Fmt;
+  /** "quote" = cenová ponuka: iný nadpis, platnosť namiesto splatnosti, bez platobných údajov */
+  kind?: "invoice" | "quote";
 }): Promise<Buffer> {
   const { company, inv, items, customer: c, jobTitle, t, fmt } = opts;
   const ti = t.invoices;
-  const doc = new PDFDocument({ size: "A4", margin: 40, font: path.join(FONT_DIR, "DejaVuSans.ttf"), info: { Title: `${ti.invoice} ${inv.number}`, Author: company.name } });
+  const quote = opts.kind === "quote";
+  const title = quote ? t.quotes.quote : ti.invoice;
+  const doc = new PDFDocument({ size: "A4", margin: 40, font: path.join(FONT_DIR, "DejaVuSans.ttf"), info: { Title: `${title} ${inv.number}`, Author: company.name } });
   doc.registerFont("R", path.join(FONT_DIR, "DejaVuSans.ttf"));
   doc.registerFont("B", path.join(FONT_DIR, "DejaVuSans-Bold.ttf"));
   const chunks: Buffer[] = [];
@@ -124,12 +128,15 @@ export async function renderInvoicePdf(opts: {
   } else {
     doc.font("B").fontSize(18).fillColor(DARK).text(company.name, L, 44, { width: 260 });
   }
-  doc.font("B").fontSize(24).fillColor(DARK).text(ti.invoice.toUpperCase(), 300, 34, { width: R - 300, align: "right" });
+  doc.font("B").fontSize(quote ? 20 : 24).fillColor(DARK).text(title.toUpperCase(), 300, 34, { width: R - 300, align: "right" });
   doc.font("R").fontSize(13).fillColor(DARK).text(inv.number, 300, 64, { width: R - 300, align: "right" });
-  if (company.is_vat_payer) doc.font("R").fontSize(8).fillColor(MUTED).text(ti.taxDocument, 300, 82, { width: R - 300, align: "right" });
+  if (company.is_vat_payer && !quote) doc.font("R").fontSize(8).fillColor(MUTED).text(ti.taxDocument, 300, 82, { width: R - 300, align: "right" });
 
   // pečiatka stavu
-  const stamp = inv.status === "paid" ? { text: ti.stampPaid, color: "#3d7a1a" } : inv.status === "cancelled" ? { text: ti.stampCancelled, color: "#c0392b" } : inv.status === "draft" ? { text: ti.stampDraft, color: "#888888" } : null;
+  const st = inv.status as string;
+  const stamp = quote
+    ? (st === "accepted" ? { text: t.quotes.stampAccepted, color: "#3d7a1a" } : st === "rejected" ? { text: t.quotes.stampRejected, color: "#c0392b" } : st === "draft" ? { text: ti.stampDraft, color: "#888888" } : null)
+    : st === "paid" ? { text: ti.stampPaid, color: "#3d7a1a" } : st === "cancelled" ? { text: ti.stampCancelled, color: "#c0392b" } : st === "draft" ? { text: ti.stampDraft, color: "#888888" } : null;
   if (stamp) {
     doc.save().rotate(-18, { origin: [300, 330] }).fillColor(stamp.color).opacity(0.14).font("B").fontSize(72).text(stamp.text, 60, 300, { width: 480, align: "center" }).restore();
     doc.opacity(1);
@@ -154,12 +161,14 @@ export async function renderInvoicePdf(opts: {
 
   // dátumy
   let y = cardY + cardH + 14;
-  const boxes: [string, string, boolean][] = [
-    [ti.issueDate, fmt.date(inv.issue_date), false],
-    [ti.deliveryDate, fmt.date(inv.delivery_date), false],
-    [ti.dueDate, fmt.date(inv.due_date), true],
-    [ti.variableSymbol, inv.variable_symbol, false],
-  ];
+  const boxes: [string, string, boolean][] = quote
+    ? [[ti.issueDate, fmt.date(inv.issue_date), false], [t.quotes.validUntil, fmt.date(inv.due_date), true]]
+    : [
+        [ti.issueDate, fmt.date(inv.issue_date), false],
+        [ti.deliveryDate, fmt.date(inv.delivery_date), false],
+        [ti.dueDate, fmt.date(inv.due_date), true],
+        [ti.variableSymbol, inv.variable_symbol, false],
+      ];
   const bw = (W - 3 * 8) / 4;
   boxes.forEach(([label, value, strong], i) => {
     const x = L + i * (bw + 8);
@@ -233,8 +242,8 @@ export async function renderInvoicePdf(opts: {
     doc.addPage();
     y = 40;
   }
-  const qr = await payBySquare(company, inv);
-  const payLines: [string, string][] = [
+  const qr = quote ? null : await payBySquare(company, inv);
+  const payLines: [string, string][] = quote ? [] : [
     [ti.iban, company.iban ?? "–"],
     [ti.variableSymbol, inv.variable_symbol],
     [ti.dueDate, fmt.date(inv.due_date)],
@@ -244,9 +253,11 @@ export async function renderInvoicePdf(opts: {
   // výška boxu podľa obsahu (dlhý IBAN sa zalomí)
   doc.font("B").fontSize(9.5);
   const contentH = payLines.reduce((h, [, v]) => h + 10 + doc.heightOfString(v, { width: valueW }) + 6, 0);
-  const boxH = Math.max(qr ? 132 : 0, 30 + contentH + 8);
-  doc.roundedRect(L, y, 270, boxH, 6).fill(CARD);
-  doc.font("B").fontSize(7.5).fillColor(MUTED).text(ti.payment.toUpperCase(), L + 14, y + 12, { characterSpacing: 0.6 });
+  const boxH = quote ? 0 : Math.max(qr ? 132 : 0, 30 + contentH + 8);
+  if (!quote) {
+    doc.roundedRect(L, y, 270, boxH, 6).fill(CARD);
+    doc.font("B").fontSize(7.5).fillColor(MUTED).text(ti.payment.toUpperCase(), L + 14, y + 12, { characterSpacing: 0.6 });
+  }
   let py = y + 30;
   for (const [label, value] of payLines) {
     doc.font("R").fontSize(7.5).fillColor(MUTED).text(label, L + 14, py);
@@ -285,7 +296,7 @@ export async function renderInvoicePdf(opts: {
   }
   ty += 4;
   doc.roundedRect(tx, ty, tw, 44, 6).fill(DARK);
-  doc.font("B").fontSize(8).fillColor(ACCENT).text(ti.toPay.toUpperCase(), tx + 12, ty + 9, { characterSpacing: 0.6 });
+  doc.font("B").fontSize(8).fillColor(ACCENT).text((quote ? t.quotes.total : ti.toPay).toUpperCase(), tx + 12, ty + 9, { characterSpacing: 0.6 });
   doc.font("B").fontSize(16).fillColor("#ffffff").text(fmt.money(Number(inv.total_gross)), tx + 12, ty + 20, { width: tw - 24, align: "right" });
 
   y = Math.max(y + boxH, ty + 44) + 18;

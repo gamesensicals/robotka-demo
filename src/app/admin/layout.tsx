@@ -18,6 +18,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: "/admin", label: t.admin.title, show: admin },
     { href: "/admin/invoices", label: t.invoices.title, show: has("invoices.view") },
     { href: "/admin/invoices/new", label: t.invoices.newInvoice, show: has("invoices.create") },
+    { href: "/admin/quotes", label: t.quotes.title, show: has("invoices.view") },
     { href: "/admin/settings", label: t.settings.title, show: has("company.settings") },
     { href: "/admin/prices", label: t.prices.title, show: has("prices.view") },
     { href: "/admin/employees", label: t.employees.title, show: has("company.team") || has("company.code") },

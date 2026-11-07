@@ -145,6 +145,20 @@ export async function seedDemo(apply: (ev: SyncEvent) => ErrorCode | null) {
   run({ type: "invoice.setStatus", companyId: C, invoiceId: "demo-inv-pekaren", status: "sent" }, O);
   inv("demo-inv-rozvadzac", "demo-cust-kovacova", "demo-job-rozvadzac", 0, [["Rozvádzač 24-modulový", "ks", 1, 32], ["Istič B16 1-pólový", "ks", 8, 4.5], ["Práca elektrikára", "hod", 4, 28]], null);
 
+  // cenové ponuky: odoslaná (wallbox) a koncept (kancelária)
+  const quote = (id: string, customer: string, job: string | null, issue: number, items: [string, string, number, number][], status: "draft" | "sent") => {
+    run({
+      type: "quote.create", companyId: C,
+      quote: { id, customer_id: customer, job_id: job, issue_date: day(issue), valid_until: day(issue + 30), note: "Ceny platia pri objednávke do dátumu platnosti ponuky." },
+      items: items.map(([name, unit, quantity, unit_price]) => ({ name, unit, quantity, unit_price, vat_rate: 23 })),
+    }, O);
+    if (status === "sent") run({ type: "quote.setStatus", companyId: C, quoteId: id, status }, O);
+  };
+  quote("demo-quote-wallbox", "demo-cust-horvat", "demo-job-wallbox", -5,
+    [["Wallbox 11 kW s káblom", "ks", 1, 690], ["Kábel CYKY-J 5x6", "m", 15, 4.9], ["Istič B32 3-pólový", "ks", 1, 18.9], ["Práca elektrikára", "hod", 6, 28]], "sent");
+  quote("demo-quote-kancelaria", "demo-cust-novotny", null, -1,
+    [["Dvojzásuvka pod omietku", "ks", 10, 6.5], ["Kábel CYKY-J 3x2,5", "m", 60, 1.2], ["Práca elektrikára", "hod", 8, 28]], "draft");
+
   // podpora: ukážkový chat s odpoveďou webmastra
   run({ type: "ticket.open", companyId: C, ticket: { id: "demo-ticket", subject: "Ako pridám nového člena tímu?", priority: "normal" }, message: { id: "demo-msg-1", body: "Dobrý deň, prijali sme nového elektrikára. Ako mu vytvorím prístup?" } }, O);
   run({ type: "ticket.message", ticketId: "demo-ticket", message: { id: "demo-msg-2", body: "Dobrý deň, v Administrácia → Zamestnanci kliknite na „Pridať člena tímu“, zadajte meno a dočasné heslo a vyberte predvoľbu oprávnení. Prihlási sa kódom firmy na stránke pre tím." } }, WEBMASTER);

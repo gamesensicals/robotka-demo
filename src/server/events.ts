@@ -25,6 +25,12 @@ export const JOB_STATUSES = ["open", "waiting", "done"] as const;
 export const INVOICE_STATUSES = ["draft", "sent", "paid", "cancelled"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+export const QUOTE_STATUSES = ["draft", "sent", "accepted", "rejected"] as const;
+export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
+/** Farba stavu ponuky (rovnaké štítky ako faktúry). */
+export const QUOTE_BADGE: Record<QuoteStatus, string> = { draft: "badge-draft", sent: "badge-sent", accepted: "badge-paid", rejected: "badge-cancelled" };
+/** Cenová ponuka platí predvolene 30 dní. */
+export const QUOTE_VALID_DAYS = 30;
 
 export type ErrorCode =
   | "sync_down" | "forbidden" | "not_found" | "invalid" | "email_taken"
@@ -124,6 +130,9 @@ export type InvoiceData = {
   reverse_charge?: boolean;
 };
 export type InvoiceLine = { name: string; unit: string; quantity: number; unit_price: number; vat_rate: number };
+export type QuoteData = {
+  id: string; customer_id: Text; job_id: Text; issue_date: string; valid_until: string; note: Text; reverse_charge?: boolean;
+};
 
 export type EventBody =
   // webmaster a web
@@ -217,6 +226,15 @@ export type EventBody =
   // úprava konceptu (číslo ostane); vystavenú faktúru opraví invoice.correct (storno + kópia ako nový koncept)
   | { type: "invoice.update"; companyId: string; invoiceId: string; invoice: Omit<InvoiceData, "id">; items: InvoiceLine[] }
   | { type: "invoice.correct"; companyId: string; invoiceId: string; newId: string }
+  // cenové ponuky
+  | { type: "quote.create"; companyId: string; quote: QuoteData; items: InvoiceLine[] }
+  | { type: "quote.update"; companyId: string; quoteId: string; quote: Omit<QuoteData, "id">; items: InvoiceLine[] }
+  | { type: "quote.setStatus"; companyId: string; quoteId: string; status: QuoteStatus }
+  | { type: "quote.delete"; companyId: string; quoteId: string }
+  /** prijatá ponuka → nová faktúra (koncept) s rovnakými položkami */
+  | { type: "quote.toInvoice"; companyId: string; quoteId: string; invoiceId: string; issue_date: string; delivery_date: string; due_date: string }
+  /** zákazka vytvorená z ponuky (alebo existujúca) */
+  | { type: "quote.setJob"; companyId: string; quoteId: string; jobId: string }
   | { type: "invoice.setStatus"; companyId: string; invoiceId: string; status: InvoiceStatus };
 
 /** Udalosť tak, ako ide cez hub: telo + id udalosti, čas a autor (id používateľa). */
@@ -472,7 +490,7 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
   const isPrimaryOwner = (companyId: string, userId: string) =>
     get<{ p: string | null }>("SELECT primary_owner_id AS p FROM companies WHERE id = ?", companyId)?.p === userId;
   // riadok musí patriť tej istej firme (inak by sa dalo siahnuť na cudzie dáta)
-  const owned = (table: "customers" | "jobs" | "job_photos" | "price_items" | "invoices", id: string, companyId: string) => {
+  const owned = (table: "customers" | "jobs" | "job_photos" | "price_items" | "invoices" | "quotes", id: string, companyId: string) => {
     if (!get(`SELECT 1 FROM ${table} WHERE id = ? AND company_id = ?`, id, companyId)) reject("not_found");
   };
   const optionalOwned = (table: "customers" | "jobs", id: Text, companyId: string) => {
@@ -580,6 +598,16 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
         `INSERT INTO invoice_items (id, invoice_id, company_id, position, name, unit, quantity, unit_price, vat_rate)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         `${invoiceId}:${position}`, invoiceId, companyId, position, it.name, it.unit || "ks", Number(it.quantity), Number(it.unit_price), it.vat_rate
+      )
+    );
+  };
+  const writeQuoteItems = (companyId: string, quoteId: string, items: InvoiceLine[]) => {
+    run("DELETE FROM quote_items WHERE quote_id = ?", quoteId);
+    items.forEach((it, position) =>
+      run(
+        `INSERT INTO quote_items (id, quote_id, company_id, position, name, unit, quantity, unit_price, vat_rate)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `${quoteId}:${position}`, quoteId, companyId, position, it.name, it.unit || "ks", Number(it.quantity), Number(it.unit_price), it.vat_rate
       )
     );
   };
@@ -1485,6 +1513,84 @@ function handle(db: DatabaseSync, ev: SyncEvent) {
       insertInvoice(ev.companyId, { ...orig, id: ev.newId }, lines, orig.buyer);
       // zákazník/zákazka mohli byť medzitým zmazaní – odberateľ ostane z pôvodnej faktúry
       run("UPDATE invoices SET buyer = COALESCE(buyer, ?), job_title = COALESCE(job_title, ?) WHERE id = ?", orig.buyer, orig.job_title, ev.newId);
+      return;
+    }
+    // ───────── Cenové ponuky ─────────
+    case "quote.create": {
+      can(ev.companyId, "invoices.create");
+      const q = ev.quote;
+      const customerId = optionalOwned("customers", q.customer_id, ev.companyId);
+      const jobId = optionalOwned("jobs", q.job_id, ev.companyId);
+      const snap = snapshot(ev.companyId, customerId, jobId);
+      const { items, sum, rc } = invoiceLines(ev.companyId, ev.items, q.reverse_charge, snap.buyer);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(q.issue_date) || !/^\d{4}-\d{2}-\d{2}$/.test(q.valid_until) || q.valid_until < q.issue_date) reject("invalid");
+      const c = get<{ next_quote_number: number }>("SELECT next_quote_number FROM companies WHERE id = ?", ev.companyId) ?? reject("not_found");
+      const number = `CP${ev.at.slice(0, 4)}${String(c.next_quote_number).padStart(4, "0")}`;
+      run("UPDATE companies SET next_quote_number = next_quote_number + 1 WHERE id = ?", ev.companyId);
+      run(
+        `INSERT INTO quotes (id, company_id, customer_id, job_id, number, issue_date, valid_until, note, reverse_charge,
+           total_net, total_vat, total_gross, buyer, job_title, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        q.id, ev.companyId, customerId, jobId, number, q.issue_date, q.valid_until, text(q.note, 4000), rc ? 1 : 0,
+        sum.net, sum.vat, sum.gross, snap.buyer, snap.jobTitle, ev.actor, ev.at
+      );
+      writeQuoteItems(ev.companyId, q.id, items);
+      return;
+    }
+    case "quote.update": {
+      // upraviť sa dá koncept a odoslaná ponuka (napr. po dohode so zákazníkom)
+      can(ev.companyId, "invoices.edit");
+      const cur = get<{ status: string }>("SELECT status FROM quotes WHERE id = ? AND company_id = ?", ev.quoteId, ev.companyId) ?? reject("not_found");
+      if (cur.status !== "draft" && cur.status !== "sent") reject("not_editable");
+      const q = ev.quote;
+      const customerId = optionalOwned("customers", q.customer_id, ev.companyId);
+      const jobId = optionalOwned("jobs", q.job_id, ev.companyId);
+      const snap = snapshot(ev.companyId, customerId, jobId);
+      const { items, sum, rc } = invoiceLines(ev.companyId, ev.items, q.reverse_charge, snap.buyer);
+      if (q.valid_until < q.issue_date) reject("invalid");
+      run(
+        `UPDATE quotes SET customer_id = ?, job_id = ?, issue_date = ?, valid_until = ?, note = ?, reverse_charge = ?,
+           total_net = ?, total_vat = ?, total_gross = ?, buyer = ?, job_title = ?, updated_at = ? WHERE id = ?`,
+        customerId, jobId, q.issue_date, q.valid_until, text(q.note, 4000), rc ? 1 : 0, sum.net, sum.vat, sum.gross,
+        snap.buyer, snap.jobTitle, ev.at, ev.quoteId
+      );
+      writeQuoteItems(ev.companyId, ev.quoteId, items);
+      return;
+    }
+    case "quote.setStatus": {
+      can(ev.companyId, "invoices.status");
+      owned("quotes", ev.quoteId, ev.companyId);
+      if (!QUOTE_STATUSES.includes(ev.status)) reject("invalid");
+      run("UPDATE quotes SET status = ? WHERE id = ?", ev.status, ev.quoteId);
+      return;
+    }
+    case "quote.delete": {
+      can(ev.companyId, "invoices.delete", { readOnlyOk: true });
+      owned("quotes", ev.quoteId, ev.companyId);
+      run("DELETE FROM quotes WHERE id = ?", ev.quoteId);
+      return;
+    }
+    case "quote.toInvoice": {
+      can(ev.companyId, "invoices.create");
+      const q = get<{ customer_id: string | null; job_id: string | null; note: string | null; reverse_charge: number; buyer: string | null; job_title: string | null; invoice_id: string | null; number: string }>(
+        "SELECT customer_id, job_id, note, reverse_charge, buyer, job_title, invoice_id, number FROM quotes WHERE id = ? AND company_id = ?", ev.quoteId, ev.companyId
+      ) ?? reject("not_found");
+      if (q.invoice_id && get("SELECT 1 FROM invoices WHERE id = ?", q.invoice_id)) reject("duplicate");
+      const lines = all<InvoiceLine>("SELECT name, unit, quantity, unit_price, vat_rate FROM quote_items WHERE quote_id = ? ORDER BY position", ev.quoteId);
+      insertInvoice(ev.companyId, {
+        id: ev.invoiceId, customer_id: q.customer_id, job_id: q.job_id, issue_date: ev.issue_date, delivery_date: ev.delivery_date,
+        due_date: ev.due_date, note: q.note, reverse_charge: q.reverse_charge,
+      }, lines, q.buyer);
+      run("UPDATE invoices SET buyer = COALESCE(buyer, ?), job_title = COALESCE(job_title, ?) WHERE id = ?", q.buyer, q.job_title, ev.invoiceId);
+      run("UPDATE quotes SET status = 'accepted', invoice_id = ? WHERE id = ?", ev.invoiceId, ev.quoteId);
+      return;
+    }
+    case "quote.setJob": {
+      can(ev.companyId, "invoices.edit");
+      owned("quotes", ev.quoteId, ev.companyId);
+      owned("jobs", ev.jobId, ev.companyId);
+      const j = get<{ title: string }>("SELECT title FROM jobs WHERE id = ?", ev.jobId)!;
+      run("UPDATE quotes SET job_id = ?, job_title = ? WHERE id = ?", ev.jobId, j.title, ev.quoteId);
       return;
     }
     case "invoice.delete": {
